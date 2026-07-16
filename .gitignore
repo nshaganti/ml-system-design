@@ -1,0 +1,26 @@
+# --- Data (huge; download from Kaggle, never commit) ---
+data/*.csv
+
+# --- Python noise ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# --- ML artifacts (large binaries; MLflow regenerates them) ---
+*.pth
+
+# --- MLflow local tracking store (derived experiment state, not source) ---
+# Anchored anywhere in the tree (e.g. phase1/mlruns/).
+**/mlruns/
+
+# --- Local run outputs ---
+phase0/results.json
+
+# --- macOS / editor junk ---
+.DS_Store
+
+# --- Env / secrets ---
+.env

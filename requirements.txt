@@ -1,0 +1,17 @@
+# Install via Walmart Artifactory:
+# pip install -i https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/external-pypi/simple -r requirements.txt
+
+# --- Phase 0 (data + heuristic baseline) ---
+polars>=0.20.0
+duckdb>=0.10.0
+numpy>=1.26.0
+scikit-learn>=1.4.0
+matplotlib>=3.8.0
+jupyter>=1.0.0
+
+# --- Phase 1 (two-tower model + experiment tracking) ---
+torch>=2.2.0
+mlflow>=2.11.0
+
+# --- Dev / testing ---
+pytest>=8.0.0
