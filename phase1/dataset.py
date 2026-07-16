@@ -25,6 +25,7 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import polars as pl
 import torch
 from torch.utils.data import Dataset
@@ -32,6 +33,12 @@ from torch.utils.data import Dataset
 MIN_STRONG_INTERACTIONS = 3   # item must appear in ≥N cart/purchase events to enter vocab
 MAX_HISTORY_LEN         = 50  # cap user history to most-recent N items (memory + speed)
 STRONG_EVENT_TYPES      = {"add_to_cart", "purchase"}  # what counts as a positive
+
+# Exponent for popularity-based negative sampling (word2vec's 0.75 trick).
+# Sampling negatives ∝ count**0.75 gives HARDER negatives than uniform:
+# popular items the user did NOT interact with are strong "why-not-this" signals,
+# which sharpens the ranking far more than random tail items.
+NEG_SAMPLING_EXPONENT = 0.75
 
 
 @dataclass
@@ -143,11 +150,17 @@ class BPRDataset(Dataset):
         vocab: ItemVocab,
         user_histories: dict[str, list[int]],
         seed: int = 42,
+        negative_sampling: str = "popularity",
     ):
         self.vocab = vocab
         self.pad_idx = vocab.size  # out-of-vocab sentinel — model embedding table has size+1 rows
 
+        if negative_sampling not in {"uniform", "popularity"}:
+            raise ValueError(f"negative_sampling must be 'uniform' or 'popularity', got {negative_sampling!r}")
+        self.negative_sampling = negative_sampling
+
         random.seed(seed)
+        self._rng = np.random.default_rng(seed)
 
         # Build positives: (user_id, positive_item_idx)
         strong_events = train_events.filter(
@@ -158,6 +171,12 @@ class BPRDataset(Dataset):
         self.samples: list[tuple[list[int], int, int]] = []
 
         all_item_indices = list(range(vocab.size))
+
+        # Precompute the popularity distribution over vocab indices (count**0.75).
+        self._neg_probs = self._build_popularity_probs(strong_events, vocab)
+        # A refillable buffer of pre-sampled negatives (vectorized draws are far
+        # faster than one np.random.choice call per triple).
+        self._neg_buffer: list[int] = []
 
         users_skipped = 0
         for row in strong_events.iter_rows(named=True):
@@ -175,15 +194,40 @@ class BPRDataset(Dataset):
                 users_skipped += 1
                 continue
 
-            # Negative: random item NOT in user's history
+            # Negative: item NOT in user's history (uniform or popularity-weighted)
             neg_idx = self._sample_negative(full_history, all_item_indices)
 
             self.samples.append((context, pos_idx, neg_idx))
 
         print(
             f"[dataset] {len(self.samples):,} training triples "
-            f"({users_skipped:,} samples skipped — single-item history)"
+            f"(neg sampling: {self.negative_sampling}; "
+            f"{users_skipped:,} samples skipped — single-item history)"
         )
+
+    def _build_popularity_probs(
+        self,
+        strong_events: pl.DataFrame,
+        vocab: ItemVocab,
+    ) -> np.ndarray | None:
+        """Probability of drawing each vocab index as a negative (count**0.75)."""
+        if self.negative_sampling != "popularity":
+            return None
+        counts = np.zeros(vocab.size, dtype=np.float64)
+        agg = (
+            strong_events
+            .group_by("item_id")
+            .agg(pl.len().alias("count"))
+        )
+        for r in agg.iter_rows(named=True):
+            idx = vocab.encode(r["item_id"])
+            if idx is not None:
+                counts[idx] = r["count"]
+        weights = np.power(counts, NEG_SAMPLING_EXPONENT)
+        total = weights.sum()
+        if total <= 0:
+            return None  # degenerate -> fall back to uniform
+        return weights / total
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -202,10 +246,27 @@ class BPRDataset(Dataset):
             "neg":     torch.tensor(neg_idx,  dtype=torch.long),
         }
 
-    @staticmethod
-    def _sample_negative(user_item_set: set[int], all_items: list[int]) -> int:
-        """Uniform random negative not in user's history."""
+    def _sample_negative(self, user_item_set: set[int], all_items: list[int]) -> int:
+        """
+        Draw a negative item not in the user's history.
+
+        - uniform: any vocab item with equal probability.
+        - popularity: items proportional to count**0.75 (harder negatives).
+          Drawn from a refillable buffer for speed.
+        """
+        if self.negative_sampling == "uniform" or self._neg_probs is None:
+            while True:
+                neg = random.choice(all_items)
+                if neg not in user_item_set:
+                    return neg
+
+        # popularity-weighted, buffered
         while True:
-            neg = random.choice(all_items)
+            if not self._neg_buffer:
+                draws = self._rng.choice(
+                    len(self._neg_probs), size=8192, p=self._neg_probs
+                )
+                self._neg_buffer = draws.tolist()
+            neg = self._neg_buffer.pop()
             if neg not in user_item_set:
                 return neg

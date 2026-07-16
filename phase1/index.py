@@ -33,15 +33,23 @@ class EmbeddingIndex:
         self,
         item_embeddings: torch.Tensor,   # (n_items, dim)
         idx_to_item_id: list[str],
+        normalize: bool = False,
     ):
-        # Normalize for cosine similarity search
-        # (makes scores interpretable and prevents high-magnitude items dominating)
-        self._matrix      = self._normalize(item_embeddings.numpy())  # (n_items, dim)
+        # Rule 32 (train == serve): the model is trained with a RAW dot product,
+        # where item-embedding magnitude encodes popularity -- a strong signal.
+        # Normalizing to cosine here would silently discard that magnitude and
+        # create training-serving skew. Default to raw dot product to match
+        # training. Set normalize=True only if the model was trained on
+        # L2-normalized embeddings.
+        self.normalize = normalize
+        matrix = item_embeddings.numpy()
+        self._matrix      = self._normalize(matrix) if normalize else matrix
         self.idx_to_item_id = idx_to_item_id
         self.n_items      = len(idx_to_item_id)
 
         print(
             f"[index] Built index: {self.n_items:,} items × {self._matrix.shape[1]}-dim "
+            f"| scoring: {'cosine' if normalize else 'dot product'} "
             f"| matrix size: {self._matrix.nbytes / 1024**2:.1f} MB"
         )
 
@@ -58,10 +66,10 @@ class EmbeddingIndex:
         This is Stage 1 (Candidate Generation) in the two-stage architecture —
         50M items → 500 candidates in production, 235K → 500 here.
         """
-        query_norm = self._normalize(query_vec.reshape(1, -1)).flatten()
+        query = self._normalize(query_vec.reshape(1, -1)).flatten() if self.normalize else query_vec
 
         # Dot product with all items: (dim,) @ (dim, n_items) = (n_items,)
-        scores = self._matrix @ query_norm
+        scores = self._matrix @ query
 
         # Sort descending — argpartition is faster than full argsort for large N
         top_k_idx = np.argpartition(scores, -min(k * 2, self.n_items))[-(k * 2):]

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import polars as pl
 from heuristic_ranker import HeuristicRanker
+from metrics import ndcg_at_k, average_precision_at_k, precision_at_k, mean
 
 
 def temporal_split(
@@ -97,6 +98,11 @@ def recall_at_k(
     warm_total  = 0
     all_recommended = set()
 
+    # Rank-aware metrics accumulated per user, then averaged (macro average).
+    ndcg_scores: list[float] = []
+    ap_scores:   list[float] = []
+    prec_scores: list[float] = []
+
     for row in test_purchasers.iter_rows(named=True):
         user_id         = row["user_id"]
         purchased_items = set(row["purchased_items"])
@@ -117,6 +123,11 @@ def recall_at_k(
 
         hits       += n_hits
         total      += len(purchased_items)
+
+        # Rank-aware metrics (order matters, unlike raw recall)
+        ndcg_scores.append(ndcg_at_k(recommendations, purchased_items, k))
+        ap_scores.append(average_precision_at_k(recommendations, purchased_items, k))
+        prec_scores.append(precision_at_k(recommendations, purchased_items, k))
 
         if is_cold_start:
             cold_hits  += n_hits
@@ -141,6 +152,9 @@ def recall_at_k(
         "cold_start_recall": cold_recall,
         "warm_user_recall":  warm_recall,
         "catalog_coverage":  coverage,
+        "ndcg_at_k":         mean(ndcg_scores),
+        "map_at_k":          mean(ap_scores),
+        "precision_at_k":    mean(prec_scores),
         "users_evaluated":   len(test_purchasers),
     }
 
@@ -156,6 +170,9 @@ def _print_results(r: dict, label: str = "Ranker") -> None:
     print(f"  {label} — Recall@{r['k']}")
     print("=" * 50)
     print(f"  Overall Recall@{r['k']}  : {r['recall_at_k']:.4f}  ({r['recall_at_k']*100:.2f}%)")
+    print(f"  NDCG@{r['k']}           : {r['ndcg_at_k']:.4f}")
+    print(f"  MAP@{r['k']}            : {r['map_at_k']:.4f}")
+    print(f"  Precision@{r['k']}      : {r['precision_at_k']:.4f}")
     print(f"  Warm users           : {r['warm_user_recall']:.4f}")
     print(f"  Cold-start users     : {r['cold_start_recall']:.4f}")
     print(f"  Catalog coverage     : {r['catalog_coverage']:.4f}  ({r['catalog_coverage']*100:.1f}%)")

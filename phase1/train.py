@@ -76,6 +76,7 @@ def train(
         "device":        device,
         "positive_events": "add_to_cart + purchase",
         "user_repr":     "mean-pool item embeddings",
+        "negative_sampling": getattr(dataset, "negative_sampling", "uniform"),
     }
 
     with mlflow.start_run(run_name=run_name) as run:

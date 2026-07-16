@@ -119,6 +119,44 @@ def test_bpr_dataset_shapes_and_padding():
     assert int(sample["neg"]) != int(sample["pos"])
 
 
+def test_bpr_dataset_rejects_bad_sampling_strategy():
+    events = _strong_events()
+    vocab = build_vocab(events)
+    histories = build_user_histories(events, vocab)
+    try:
+        BPRDataset(events, vocab, histories, negative_sampling="nonsense")
+        assert False, "expected ValueError for unknown sampling strategy"
+    except ValueError:
+        pass
+
+
+def test_bpr_dataset_popularity_sampling_runs():
+    # Build a dataset large enough to produce triples, using popularity negatives.
+    base = 1_600_000_000_000
+    rows = []
+    for item in ("a", "b", "c", "d"):
+        for i in range(MIN_STRONG_INTERACTIONS):
+            rows.append((f"seed_{item}_{i}", "purchase", item, base + i))
+    rows.append(("hero", "purchase", "a", base + 500))
+    rows.append(("hero", "purchase", "b", base + 501))
+    events = pl.DataFrame(
+        {
+            "user_id":      [r[0] for r in rows],
+            "event_type":   [r[1] for r in rows],
+            "item_id":      [r[2] for r in rows],
+            "timestamp_ms": [r[3] for r in rows],
+        }
+    ).with_columns(pl.col("timestamp_ms").cast(pl.Int64))
+
+    vocab = build_vocab(events)
+    histories = build_user_histories(events, vocab)
+    ds = BPRDataset(events, vocab, histories, seed=7, negative_sampling="popularity")
+    assert ds.negative_sampling == "popularity"
+    # Every produced negative must be a valid vocab index.
+    for context, pos, neg in ds.samples:
+        assert 0 <= neg < vocab.size
+
+
 def test_bpr_dataset_negatives_outside_history():
     # Craft a user with a real 2-item history so a triple is produced.
     base = 1_600_000_000_000
