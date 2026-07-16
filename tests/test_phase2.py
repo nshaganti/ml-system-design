@@ -38,6 +38,22 @@ def _events():
     ).with_columns(pl.col("timestamp_ms").cast(pl.Int64))
 
 
+def _item_props():
+    """Item x -> category 'A'; item y -> category 'B'."""
+    rows = [
+        ("x", "categoryid", "A", 1),
+        ("y", "categoryid", "B", 1),
+    ]
+    return pl.DataFrame(
+        {
+            "item_id":      [r[0] for r in rows],
+            "property":     [r[1] for r in rows],
+            "value":        [r[2] for r in rows],
+            "timestamp_ms": [r[3] for r in rows],
+        }
+    ).with_columns(pl.col("timestamp_ms").cast(pl.Int64))
+
+
 # ------------------------------------------------------------- point-in-time
 
 
@@ -77,6 +93,49 @@ def test_views_do_not_count_as_popularity():
     assert store.get_historical_features(entity)["item_pop"].to_list() == [0]
 
 
+# ------------------------------------------------------- cross feature
+
+
+def test_cross_feature_is_point_in_time_correct():
+    # u2 buys y (cat B) at t=15, then x (cat A) at t=20. At t=20, u2's prior
+    # affinity to category A is 0 (they hadn't touched A yet).
+    store = PointInTimeFeatureStore().fit(
+        _events(), cutoff_timestamp_ms=1000, item_properties=_item_props()
+    )
+    entity = pl.DataFrame(
+        {"user_id": ["u2"], "item_id": ["x"], "timestamp_ms": [20]}
+    ).with_columns(pl.col("timestamp_ms").cast(pl.Int64))
+    out = store.get_historical_features(entity)
+    assert out["user_cat_affinity"].to_list() == [0]
+
+
+def test_cross_feature_counts_prior_same_category():
+    # Add a prior category-A purchase for u2 before t=20 so affinity is nonzero.
+    base = _events()
+    extra = pl.DataFrame(
+        {"user_id": ["u2"], "event_type": ["purchase"], "item_id": ["x"], "timestamp_ms": [12]}
+    ).with_columns(pl.col("timestamp_ms").cast(pl.Int64))
+    events = pl.concat([base, extra])
+    store = PointInTimeFeatureStore().fit(
+        events, cutoff_timestamp_ms=1000, item_properties=_item_props()
+    )
+    entity = pl.DataFrame(
+        {"user_id": ["u2"], "item_id": ["x"], "timestamp_ms": [20]}
+    ).with_columns(pl.col("timestamp_ms").cast(pl.Int64))
+    out = store.get_historical_features(entity)
+    # u2 had one prior category-A event (x@12) before t=20.
+    assert out["user_cat_affinity"].to_list() == [1]
+
+
+def test_cross_feature_zero_without_item_properties():
+    store = PointInTimeFeatureStore().fit(_events(), cutoff_timestamp_ms=1000)
+    entity = pl.DataFrame(
+        {"user_id": ["u2"], "item_id": ["x"], "timestamp_ms": [20]}
+    ).with_columns(pl.col("timestamp_ms").cast(pl.Int64))
+    out = store.get_historical_features(entity)
+    assert out["user_cat_affinity"].to_list() == [0]
+
+
 # -------------------------------------------------------------------- skew
 
 
@@ -107,7 +166,7 @@ def test_online_features_return_cutoff_totals():
 def test_online_features_unknown_entity_is_zero():
     store = PointInTimeFeatureStore().fit(_events(), cutoff_timestamp_ms=1000)
     feats = store.get_online_features(user_id="ghost", item_id="nope")
-    assert feats == {"item_pop": 0, "user_pop": 0}
+    assert feats == {"item_pop": 0, "user_pop": 0, "user_cat_affinity": 0}
 
 
 def test_feature_store_requires_fit():
@@ -120,13 +179,14 @@ def test_feature_store_requires_fit():
 
 
 def _labelled_df():
-    # Clear signal: high item_pop/user_pop -> positive.
+    # Clear signal: high item_pop/user_pop/affinity -> positive.
     return pl.DataFrame(
         {
-            "item_id":  [f"i{i}" for i in range(8)],
-            "item_pop": [100, 90, 80, 70, 1, 2, 3, 0],
-            "user_pop": [50, 40, 30, 20, 0, 1, 0, 1],
-            "label":    [1, 1, 1, 1, 0, 0, 0, 0],
+            "item_id":           [f"i{i}" for i in range(8)],
+            "item_pop":          [100, 90, 80, 70, 1, 2, 3, 0],
+            "user_pop":          [50, 40, 30, 20, 0, 1, 0, 1],
+            "user_cat_affinity": [10, 8, 6, 4, 0, 0, 1, 0],
+            "label":             [1, 1, 1, 1, 0, 0, 0, 0],
         }
     )
 
@@ -147,7 +207,10 @@ def test_lr_ranker_learns_and_ranks():
 
 
 def test_lr_ranker_needs_both_classes():
-    df = pl.DataFrame({"item_id": ["a", "b"], "item_pop": [1, 2], "user_pop": [0, 0], "label": [1, 1]})
+    df = pl.DataFrame(
+        {"item_id": ["a", "b"], "item_pop": [1, 2], "user_pop": [0, 0],
+         "user_cat_affinity": [0, 1], "label": [1, 1]}
+    )
     with pytest.raises(ValueError):
         LRRanker().fit(df)
 

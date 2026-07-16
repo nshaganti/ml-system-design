@@ -29,7 +29,7 @@ import polars as pl
 sys.path.insert(0, str(Path(__file__).parent.parent / "phase0"))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from load_data import load_events
+from load_data import load_events, load_item_properties
 from evaluate import temporal_split
 from metrics import ndcg_at_k, average_precision_at_k, recall_at_k, mean
 
@@ -115,20 +115,16 @@ def evaluate_ranker(
     if len(test_purchasers) > MAX_EVAL_USERS:
         test_purchasers = test_purchasers.sample(MAX_EVAL_USERS, seed=SEED)
 
-    # Precompute item popularity for the whole pool once (online features).
-    pool_with_item = pool_df.join(store._item_totals, on="item_id", how="left").with_columns(
-        pl.col("item_pop").fill_null(0)
-    )
-    user_totals = store._user_totals
-
     lr_ndcg, lr_recall, pop_ndcg, pop_recall = [], [], [], []
 
     for row in test_purchasers.iter_rows(named=True):
         user_id = row["user_id"]
         purchased = set(row["purchased_items"])
 
-        user_pop = store._lookup(user_totals, "user_id", user_id, "user_pop")
-        cand = pool_with_item.with_columns(pl.lit(user_pop).alias("user_pop"))
+        # Online features for this user across the whole pool. The cross feature
+        # (user_cat_affinity) varies per candidate, so the LR can now PERSONALIZE.
+        cand = pool_df.with_columns(pl.lit(user_id).alias("user_id"))
+        cand = store.get_online_features_batch(cand)
 
         lr_top = ranker.rank(cand, item_col="item_id", n=K)
         pop_top = pool[:K]  # popularity baseline = pool order
@@ -151,12 +147,15 @@ def main():
 
     print("Step 1/5: Loading data...")
     events = load_events()
+    item_props = load_item_properties()
 
     print("\nStep 2/5: Temporal split...")
     train_events, test_events, cutoff_ms = temporal_split(events, train_fraction=0.8)
 
     print("\nStep 3/5: Fitting point-in-time feature store...")
-    store = PointInTimeFeatureStore().fit(train_events, cutoff_timestamp_ms=cutoff_ms)
+    store = PointInTimeFeatureStore().fit(
+        train_events, cutoff_timestamp_ms=cutoff_ms, item_properties=item_props
+    )
 
     print("\nStep 4/5: Building training set + training LR ranker...")
     training_df = build_training_set(train_events, store, rng)
@@ -175,15 +174,14 @@ def main():
     print(f"  {'NDCG@'+str(K):<16} {res['pop_ndcg']:>12.4f} {res['lr_ndcg']:>12.4f}")
     print(f"  users evaluated : {res['users']:,}")
     print("=" * 55)
-    print("  Note: with only item_pop + user_pop, the ranker TIES popularity by")
-    print("  construction -- user_pop is constant within a user, so per-user")
-    print("  ranking reduces to item_pop order. Personalized lift needs CROSS")
-    print("  features (user x item), e.g. user's affinity to the item's category")
-    print("  (Rule 20). That is the next feature to add.")
+    lift = (res['lr_ndcg'] / res['pop_ndcg'] - 1) * 100 if res['pop_ndcg'] > 0 else 0.0
+    print(f"  The user_cat_affinity CROSS feature lets the ranker PERSONALIZE:")
+    print(f"  it reorders the same popular pool per user by category affinity,")
+    print(f"  giving {lift:+.0f}% NDCG vs raw popularity order (Rule 20).")
     print("\nNext steps:")
-    print("  - Add a user x item CROSS feature (category affinity) for real lift.")
     print("  - Feed the LR ranker the two-tower's 500 candidates (Phase 1) instead")
     print("    of the popularity pool for the full two-stage architecture.")
+    print("  - Add more cross features (price vs user avg, brand affinity, recency).")
     print("  - Upgrade LR -> XGBoost only if it plateaus; move features to Redis.\n")
     return res
 
