@@ -144,14 +144,16 @@ def recall_at_k(
         "users_evaluated":   len(test_purchasers),
     }
 
-    _print_results(results)
+    # Label the printout with the ranker under test so Phase 1's output isn't
+    # mislabelled "HEURISTIC BASELINE".
+    _print_results(results, label=type(ranker).__name__)
     return results
 
 
-def _print_results(r: dict) -> None:
+def _print_results(r: dict, label: str = "Ranker") -> None:
     print()
     print("=" * 50)
-    print(f"  HEURISTIC BASELINE — Recall@{r['k']}")
+    print(f"  {label} — Recall@{r['k']}")
     print("=" * 50)
     print(f"  Overall Recall@{r['k']}  : {r['recall_at_k']:.4f}  ({r['recall_at_k']*100:.2f}%)")
     print(f"  Warm users           : {r['warm_user_recall']:.4f}")
