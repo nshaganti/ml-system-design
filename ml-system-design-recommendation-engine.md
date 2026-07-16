@@ -86,6 +86,13 @@ This is the single most important investment of Phase 0. Log every impression, c
 - **Apache Kafka** -- stream events from the application
 - **Apache Iceberg on S3/GCS** -- durable event store for training data
 
+> **In practice (this repo).** We implemented Phase 0 on the Retail Rocket
+> dataset in [`phase0/`](phase0/). The heuristic scores **Recall@20 = 0.0310**
+> with an honest temporal split -- that is the baseline every later model must
+> beat. We also learned that catalog coverage (1.4%) matters as much as recall:
+> a popularity ranker is a "popularity trap" that never surfaces the long tail.
+> Full walkthrough: [`docs/phase0.md`](docs/phase0.md).
+
 ---
 
 ## Phase 1: First ML Pipeline (Rules 4, 5, 14)
@@ -184,6 +191,15 @@ When the ranker makes a mistake, logistic regression tells you *why* -- you can 
 - **Apache Airflow** -- schedules the daily retrain
 - **MLflow** -- tracks every run: hyperparameters, metrics, model artifacts, lineage
 
+> **In practice (this repo).** Our two-tower candidate generator lives in
+> [`phase1/`](phase1/) with MLflow tracking. The humbling result: it **lost** to
+> the Phase 0 heuristic (Recall@20 0.0228 vs 0.0310), even after popularity-
+> weighted negatives (+27% warm recall) and fixing a train/serve dot-product
+> mismatch. That is a normal, legitimate Phase 1 outcome -- a strong heuristic is
+> a hard baseline, and beating it needs side features, not just embeddings. The
+> lasting deliverable is the *pipeline*, not the model. Full story (with the
+> debugging steps): [`docs/phase1.md`](docs/phase1.md).
+
 ---
 
 ## Phase 2: The Feature Store -- The Most Under-Taught Concept
@@ -260,6 +276,16 @@ features = store.get_online_features(
     entity_rows=[{"user_id": "u123"}]
 ).to_dict()
 ```
+
+> **In practice (this repo).** [`phase2/`](phase2/) implements a minimal
+> point-in-time feature store over polars `join_asof` (same API shape as the
+> Feast snippet above: `get_historical_features` / `get_online_features`). The
+> payoff is a *measured* skew number: building features the naive "join today's
+> totals" way inflates them **2.0-2.8x** vs point-in-time correct. On top of it,
+> an interpretable logistic-regression ranker with a user x item **cross feature**
+> (category affinity) finally beats popularity (+2% NDCG) -- and its weights are
+> readable (e.g. a *negative* weight on user activity). Full walkthrough:
+> [`docs/phase2.md`](docs/phase2.md).
 
 ---
 

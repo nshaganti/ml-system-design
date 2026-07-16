@@ -12,6 +12,18 @@ The design narrative lives in two documents:
 - [`ml-system-design-recommendation-engine.md`](ml-system-design-recommendation-engine.md) -- the end-to-end architecture (Phases 0-6).
 - [`ml-system-design-methodology-and-pitfalls.md`](ml-system-design-methodology-and-pitfalls.md) -- the methodology and common traps.
 
+## Learning walkthroughs (start here)
+
+The `docs/` folder turns this from a code dump into a guided course. Each
+walkthrough follows the same arc: **the problem -> the design decision and why ->
+a tour of the code -> the actual measured results -> the gotchas that surprised
+us.** Written for an ML engineer moving from notebooks to production.
+
+- [`docs/phase0.md`](docs/phase0.md) -- launch without ML; temporal evaluation; the baseline.
+- [`docs/phase1.md`](docs/phase1.md) -- two-tower retrieval, and why our ML model *lost* to the heuristic (and what we did about it).
+- [`docs/phase2.md`](docs/phase2.md) -- the feature store, training-serving skew measured at ~2x, and the ranker that finally wins.
+- [`docs/lessons-learned.md`](docs/lessons-learned.md) -- the greatest-hits cheat sheet of production reflexes.
+
 ---
 
 ## Repository layout
