@@ -31,6 +31,10 @@ The design narrative lives in two documents:
 │   ├── index.py              #   brute-force ANN over item embeddings
 │   ├── ranker.py             #   two-tower ranker w/ phase 0 fallback
 │   └── run.py                #   phase 1 entry point (compares vs phase 0)
+├── phase2/                   # LR ranker + point-in-time feature store
+│   ├── feature_store.py      #   point-in-time correct + online + skewed features
+│   ├── lr_ranker.py          #   interpretable logistic-regression ranker
+│   └── run.py                #   phase 2 entry point (+ skew demonstration)
 ├── tests/                    # pytest suite (synthetic data, no CSVs needed)
 ├── requirements.txt
 └── .github/workflows/ci.yml  # runs pytest on push / PR
@@ -94,6 +98,18 @@ Inspect the training runs:
 mlflow ui --port 5000   # then open http://localhost:5000
 ```
 
+### 5. Run Phase 2 (LR ranker + feature store)
+
+```bash
+cd phase2
+python run.py
+```
+
+This fits a **point-in-time feature store**, trains an interpretable
+logistic-regression ranker on leakage-free features, and -- the headline --
+**quantifies training-serving skew** by showing how much the naive
+"join today's totals" approach inflates historical feature values.
+
 ---
 
 ## Running the tests
@@ -125,7 +141,7 @@ CI runs the same suite on every push and pull request (Python 3.9 and 3.11).
 
 - [x] Phase 0 -- heuristic baseline
 - [x] Phase 1 -- two-tower candidate generation
-- [ ] Phase 2 -- logistic-regression ranker + point-in-time feature store
+- [x] Phase 2 -- logistic-regression ranker + point-in-time feature store
 - [ ] Phase 3+ -- serving, monitoring, A/B testing, near-real-time freshness
 
 See the design doc for the full multi-phase plan.

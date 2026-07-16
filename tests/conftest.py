@@ -19,6 +19,7 @@ import pytest
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "phase0"))
 sys.path.insert(0, str(ROOT / "phase1"))
+sys.path.insert(0, str(ROOT / "phase2"))
 
 DAY_MS = 86_400 * 1000
 

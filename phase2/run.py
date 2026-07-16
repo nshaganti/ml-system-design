@@ -1,0 +1,192 @@
+"""
+Phase 2 -- Entry Point
+=======================
+Logistic-regression ranker on point-in-time-correct features, plus a concrete
+demonstration of training-serving skew (the design doc's headline concept).
+
+Pipeline:
+  1. Load data + temporal split (reuse phase0)
+  2. Fit the point-in-time feature store on training events
+  3. Build a labelled training set (strong events = positive, sampled = negative)
+  4. Train the LR ranker on POINT-IN-TIME-correct features
+  5. Quantify the skew: how different are point-in-time vs "join today's totals"?
+  6. Evaluate the ranker on test purchasers vs a popularity baseline
+     (candidate pool = top popular items; the ranker reorders them)
+
+Usage:
+    cd phase2
+    python run.py
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import numpy as np
+import polars as pl
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "phase0"))
+sys.path.insert(0, str(Path(__file__).parent))
+
+from load_data import load_events
+from evaluate import temporal_split
+from metrics import ndcg_at_k, average_precision_at_k, recall_at_k, mean
+
+from feature_store import PointInTimeFeatureStore, FEATURE_COLUMNS
+from lr_ranker import LRRanker
+
+MAX_POSITIVES   = 100_000   # cap training rows for speed
+CANDIDATE_POOL  = 500       # popularity candidate pool the ranker reorders
+K               = 20
+MAX_EVAL_USERS  = 5000
+SEED            = 42
+
+
+def build_training_set(
+    train_events: pl.DataFrame,
+    store: PointInTimeFeatureStore,
+    rng: np.random.Generator,
+) -> pl.DataFrame:
+    """Positives = strong events; negatives = a random item at the same time."""
+    strong = train_events.filter(pl.col("event_type").is_in(["add_to_cart", "purchase"]))
+    if len(strong) > MAX_POSITIVES:
+        strong = strong.sample(MAX_POSITIVES, seed=SEED)
+
+    all_items = train_events["item_id"].unique().to_list()
+
+    pos = strong.select(["user_id", "item_id", "timestamp_ms"]).with_columns(
+        pl.lit(1).alias("label")
+    )
+    # Negative: same user + timestamp, a random item (approximate; fine for demo)
+    neg_items = rng.choice(np.array(all_items), size=len(pos))
+    neg = pos.select(["user_id", "timestamp_ms"]).with_columns(
+        pl.Series("item_id", neg_items).cast(pl.Utf8),
+        pl.lit(0).alias("label"),
+    ).select(["user_id", "item_id", "timestamp_ms", "label"])
+
+    entity = pl.concat([pos, neg])
+    # Point-in-time correct features -- the RIGHT way (Rule 29).
+    return store.get_historical_features(entity)
+
+
+def measure_skew(entity_df: pl.DataFrame, store: PointInTimeFeatureStore) -> None:
+    """Compare point-in-time features to the naive 'join today's totals' bug."""
+    base = entity_df.select(["user_id", "item_id", "timestamp_ms", "label"])
+    correct = store.get_historical_features(base)
+    skewed = store.get_skewed_features(base)
+
+    print("\n" + "=" * 55)
+    print("  TRAINING-SERVING SKEW (point-in-time vs leaked)")
+    print("=" * 55)
+    for col in FEATURE_COLUMNS:
+        c = correct[col].to_numpy().astype(float)
+        s = skewed[col].to_numpy().astype(float)
+        mad = float(np.mean(np.abs(c - s)))
+        infl = (s.mean() / c.mean()) if c.mean() > 0 else float("nan")
+        print(f"  {col:<10} point-in-time mean={c.mean():8.2f} | "
+              f"leaked mean={s.mean():8.2f} | inflation x{infl:4.1f} | MAD={mad:6.2f}")
+    print("  ^ The leaked ('join today') features are systematically inflated:")
+    print("    old events get credited with popularity they only earned later.")
+    print("    Train on that and offline eval lies; production degrades (Rules 29-37).")
+    print("=" * 55)
+
+
+def evaluate_ranker(
+    ranker: LRRanker,
+    train_events: pl.DataFrame,
+    test_events: pl.DataFrame,
+    store: PointInTimeFeatureStore,
+) -> dict:
+    """Reorder a popularity candidate pool with the LR ranker; score vs purchases."""
+    # Candidate pool = most popular items as of the cutoff (Phase 1 would supply
+    # these via two-tower ANN; popularity is a fine stand-in for the ranker demo).
+    pool = (
+        store._item_totals.sort("item_pop", descending=True)
+        .head(CANDIDATE_POOL)["item_id"].to_list()
+    )
+    pool_df = pl.DataFrame({"item_id": pool})
+
+    test_purchasers = (
+        test_events.filter(pl.col("event_type") == "purchase")
+        .group_by("user_id")
+        .agg(pl.col("item_id").alias("purchased_items"))
+    )
+    if len(test_purchasers) > MAX_EVAL_USERS:
+        test_purchasers = test_purchasers.sample(MAX_EVAL_USERS, seed=SEED)
+
+    # Precompute item popularity for the whole pool once (online features).
+    pool_with_item = pool_df.join(store._item_totals, on="item_id", how="left").with_columns(
+        pl.col("item_pop").fill_null(0)
+    )
+    user_totals = store._user_totals
+
+    lr_ndcg, lr_recall, pop_ndcg, pop_recall = [], [], [], []
+
+    for row in test_purchasers.iter_rows(named=True):
+        user_id = row["user_id"]
+        purchased = set(row["purchased_items"])
+
+        user_pop = store._lookup(user_totals, "user_id", user_id, "user_pop")
+        cand = pool_with_item.with_columns(pl.lit(user_pop).alias("user_pop"))
+
+        lr_top = ranker.rank(cand, item_col="item_id", n=K)
+        pop_top = pool[:K]  # popularity baseline = pool order
+
+        lr_ndcg.append(ndcg_at_k(lr_top, purchased, K))
+        lr_recall.append(recall_at_k(lr_top, purchased, K))
+        pop_ndcg.append(ndcg_at_k(pop_top, purchased, K))
+        pop_recall.append(recall_at_k(pop_top, purchased, K))
+
+    return {
+        "lr_ndcg": mean(lr_ndcg), "lr_recall": mean(lr_recall),
+        "pop_ndcg": mean(pop_ndcg), "pop_recall": mean(pop_recall),
+        "users": len(test_purchasers),
+    }
+
+
+def main():
+    print("\n=== Phase 2: LR Ranker + Point-in-Time Feature Store ===\n")
+    rng = np.random.default_rng(SEED)
+
+    print("Step 1/5: Loading data...")
+    events = load_events()
+
+    print("\nStep 2/5: Temporal split...")
+    train_events, test_events, cutoff_ms = temporal_split(events, train_fraction=0.8)
+
+    print("\nStep 3/5: Fitting point-in-time feature store...")
+    store = PointInTimeFeatureStore().fit(train_events, cutoff_timestamp_ms=cutoff_ms)
+
+    print("\nStep 4/5: Building training set + training LR ranker...")
+    training_df = build_training_set(train_events, store, rng)
+    ranker = LRRanker().fit(training_df)
+    measure_skew(training_df, store)
+
+    print("\nStep 5/5: Evaluating ranker vs popularity baseline...")
+    res = evaluate_ranker(ranker, train_events, test_events, store)
+
+    print("\n" + "=" * 55)
+    print("  PHASE 2 RANKER vs POPULARITY (same candidate pool)")
+    print("=" * 55)
+    print(f"  {'Metric':<16} {'Popularity':>12} {'LR ranker':>12}")
+    print(f"  {'-'*42}")
+    print(f"  {'Recall@'+str(K):<16} {res['pop_recall']:>12.4f} {res['lr_recall']:>12.4f}")
+    print(f"  {'NDCG@'+str(K):<16} {res['pop_ndcg']:>12.4f} {res['lr_ndcg']:>12.4f}")
+    print(f"  users evaluated : {res['users']:,}")
+    print("=" * 55)
+    print("  Note: with only item_pop + user_pop, the ranker TIES popularity by")
+    print("  construction -- user_pop is constant within a user, so per-user")
+    print("  ranking reduces to item_pop order. Personalized lift needs CROSS")
+    print("  features (user x item), e.g. user's affinity to the item's category")
+    print("  (Rule 20). That is the next feature to add.")
+    print("\nNext steps:")
+    print("  - Add a user x item CROSS feature (category affinity) for real lift.")
+    print("  - Feed the LR ranker the two-tower's 500 candidates (Phase 1) instead")
+    print("    of the popularity pool for the full two-stage architecture.")
+    print("  - Upgrade LR -> XGBoost only if it plateaus; move features to Redis.\n")
+    return res
+
+
+if __name__ == "__main__":
+    main()
