@@ -28,6 +28,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase6.md`](docs/phase6.md) -- near-real-time freshness: streaming features (no retrain) for a significant +57% hit@20 lift.
 - [`docs/results.md`](docs/results.md) -- the consolidated scoreboard: every phase's numbers, grouped by what's *actually* comparable, with the honest story (complexity bought robustness, freshness bought accuracy).
 - [`docs/benchmarking-vs-literature.md`](docs/benchmarking-vs-literature.md) -- how we stack up against the community's actual task (session next-item). Co-visitation scores Recall@20=0.344, beating every learned model here.
+- [`docs/dataset-hm.md`](docs/dataset-hm.md) -- swapping Retail Rocket for H&M with zero phase changes: the dataset dispatcher, what's different about H&M, and how to run it.
 - [`docs/lessons-learned.md`](docs/lessons-learned.md) -- the greatest-hits cheat sheet of production reflexes.
 
 ---
@@ -91,7 +92,7 @@ pip install -i https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/extern
 
 ### 2. Get the dataset
 
-Download the three CSVs from
+**Default -- Retail Rocket.** Download the three CSVs from
 [Kaggle: Retail Rocket](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset)
 and drop them in `data/`:
 
@@ -102,6 +103,20 @@ data/item_properties_part2.csv
 ```
 
 (They total ~1 GB and are gitignored -- never commit them.)
+
+**Optional -- H&M.** The pipeline is dataset-agnostic. To run everything on the
+[H&M Personalized Fashion](https://www.kaggle.com/competitions/h-and-m-personalized-fashion-recommendations)
+data instead, accept the competition rules, drop `transactions_train.csv`,
+`articles.csv`, `customers.csv` into `data/`, and set `DATASET=hm`:
+
+```bash
+cd phase0 && DATASET=hm python run.py           # any phase, one env var
+cd phase0 && DATASET=hm HM_MAX_ROWS=3000000 python run.py   # cap for small machines
+```
+
+See [`docs/dataset-hm.md`](docs/dataset-hm.md) for the migration guide and
+what's different about H&M. Adding another dataset = one module in
+`phase0/data_sources/` + one line in the dispatcher; no phase code changes.
 
 ### 3. Run Phase 0 (heuristic baseline)
 

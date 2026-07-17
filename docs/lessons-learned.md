@@ -185,6 +185,19 @@ you can't reproduce.
 numbers. And when you can't verify an external claim, reproduce it -- don't quote
 it. Never fabricate a comparison.
 
+## 18. A canonical schema makes the hardest thing to change (the data) easy
+
+We set up a canonical event/property schema in Phase 0 almost as an afterthought.
+Its payoff arrived much later: swapping the *entire dataset* from Retail Rocket to
+H&M took **zero changes to any of the seven phases** -- just a new loader module
+behind a `DATASET` env var. Every phase spoke the canonical schema, so none of
+them knew or cared which dataset was underneath.
+
+**Reflex:** define a canonical internal schema at the boundary and translate every
+external source into it *once*. The alternative -- phases reaching into raw,
+dataset-specific columns -- turns a data swap into a full rewrite. Cheap discipline
+early, huge optionality later.
+
 ---
 
 ## The meta-lesson
