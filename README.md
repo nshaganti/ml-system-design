@@ -22,6 +22,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase0.md`](docs/phase0.md) -- launch without ML; temporal evaluation; the baseline.
 - [`docs/phase1.md`](docs/phase1.md) -- two-tower retrieval, and why our ML model *lost* to the heuristic (and what we did about it).
 - [`docs/phase2.md`](docs/phase2.md) -- the feature store, training-serving skew measured at ~2x, and the ranker that finally wins.
+- [`docs/phase3.md`](docs/phase3.md) -- the serving architecture: the 100ms request path, latency budgets, graceful fallback, and Rule 29 feature logging.
 - [`docs/lessons-learned.md`](docs/lessons-learned.md) -- the greatest-hits cheat sheet of production reflexes.
 
 ---
@@ -47,6 +48,10 @@ us.** Written for an ML engineer moving from notebooks to production.
 │   ├── feature_store.py      #   point-in-time correct + online + skewed features
 │   ├── lr_ranker.py          #   interpretable logistic-regression ranker
 │   └── run.py                #   phase 2 entry point (+ skew demonstration)
+├── phase3/                   # Serving architecture (the 100ms request path)
+│   ├── candidate_generator.py#   Stage 1 behind an interface (popularity impl)
+│   ├── service.py            #   request handler: timed stages, fallback, feature log
+│   └── run.py                #   phase 3 entry point (latency test + fault injection)
 ├── tests/                    # pytest suite (synthetic data, no CSVs needed)
 ├── requirements.txt
 └── .github/workflows/ci.yml  # runs pytest on push / PR
@@ -122,6 +127,19 @@ logistic-regression ranker on leakage-free features, and -- the headline --
 **quantifies training-serving skew** by showing how much the naive
 "join today's totals" approach inflates historical feature values.
 
+### 6. Run Phase 3 (the serving architecture)
+
+```bash
+cd phase3
+python run.py
+```
+
+This assembles Phases 1-2 into a live recommendation **service** and exercises
+it: a single request with a per-stage latency breakdown, a load test reporting
+p50/p99 latency against the 100ms budget, fault injection proving graceful
+fallback, and the **Rule 29 inference feature log** (the seed of skew-free
+next-generation training data).
+
 ---
 
 ## Running the tests
@@ -154,6 +172,7 @@ CI runs the same suite on every push and pull request (Python 3.9 and 3.11).
 - [x] Phase 0 -- heuristic baseline
 - [x] Phase 1 -- two-tower candidate generation
 - [x] Phase 2 -- logistic-regression ranker + point-in-time feature store
-- [ ] Phase 3+ -- serving, monitoring, A/B testing, near-real-time freshness
+- [x] Phase 3 -- serving architecture (100ms request path, fallback, feature logging)
+- [ ] Phase 4+ -- monitoring / drift detection, A/B testing, near-real-time freshness
 
 See the design doc for the full multi-phase plan.

@@ -87,6 +87,25 @@ Rule 4's real point: the model changes weekly; the infra is forever. What Phase 
 actually shipped was MLflow tracking, an index, and a fair eval harness. The model
 inside is now easy to swap and improve -- which is the whole game.
 
+## 11. Serving degrades, it doesn't crash
+
+When the ranker throws, the service returns candidate order with
+`fallback_used=True` -- never a 500 (Rule 10). Just as important: it *records*
+the fallback so monitoring can count it. A silent fallback is its own outage.
+
+**Reflex:** every model call in the request path needs a fallback, and every
+fallback needs to be countable.
+
+## 12. Logging served features is the improvement flywheel (Rule 29)
+
+The single habit that separates a system that improves from one that rots: log
+the *exact* features passed to the model at inference time. Train the next model
+by joining new labels to that log -- not to the current feature store. This makes
+skew-free training data a byproduct of serving.
+
+**Reflex:** if you can't answer "what features did the model see for this exact
+request?", you can't train v2 safely.
+
 ---
 
 ## The meta-lesson

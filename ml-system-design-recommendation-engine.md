@@ -317,6 +317,16 @@ User Request (HTTP)
 
 > **Critical (Rule 29):** Log the *exact features* passed to the model at inference time. When you generate training data for the next version, join user actions to this log -- not to the current feature store state. This eliminates training-serving skew entirely.
 
+> **In practice (this repo).** [`phase3/`](phase3/) assembles Phases 1-2 into a
+> live `RecommendationService` with all six stages timed. Over 2,000 real-user
+> requests it holds **p50 6.2ms / p99 14.4ms, 100% within the 100ms budget**
+> (flattering, since it's in-process -- but every stage is measured, so real
+> infra costs are easy to locate). Fault injection proves graceful fallback
+> (Rule 10): a broken ranker still returns 20 items with `fallback_used=True`,
+> no 500. Business rules filter 357k out-of-stock items. And the Rule 29 feature
+> log captured 40k rows of exactly-what-was-served -- the skew-free seed for v2.
+> Full walkthrough: [`docs/phase3.md`](docs/phase3.md).
+
 ---
 
 ## Phase 4: Monitoring -- Rule 10
