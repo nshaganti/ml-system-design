@@ -23,6 +23,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase1.md`](docs/phase1.md) -- two-tower retrieval, and why our ML model *lost* to the heuristic (and what we did about it).
 - [`docs/phase2.md`](docs/phase2.md) -- the feature store, training-serving skew measured at ~2x, and the ranker that finally wins.
 - [`docs/phase3.md`](docs/phase3.md) -- the serving architecture: the 100ms request path, latency budgets, graceful fallback, and Rule 29 feature logging.
+- [`docs/phase4.md`](docs/phase4.md) -- monitoring and drift detection: three health layers, PSI drift caught at 0.47, and a pipeline gate.
 - [`docs/lessons-learned.md`](docs/lessons-learned.md) -- the greatest-hits cheat sheet of production reflexes.
 
 ---
@@ -52,6 +53,9 @@ us.** Written for an ML engineer moving from notebooks to production.
 │   ├── candidate_generator.py#   Stage 1 behind an interface (popularity impl)
 │   ├── service.py            #   request handler: timed stages, fallback, feature log
 │   └── run.py                #   phase 3 entry point (latency test + fault injection)
+├── phase4/                   # Monitoring & drift detection (Rule 10)
+│   ├── monitors.py           #   PSI/KL/ECE numeric core + check framework + gate
+│   └── run.py                #   phase 4 entry point (3 health layers + gate)
 ├── tests/                    # pytest suite (synthetic data, no CSVs needed)
 ├── requirements.txt
 └── .github/workflows/ci.yml  # runs pytest on push / PR
@@ -140,6 +144,18 @@ p50/p99 latency against the 100ms budget, fault injection proving graceful
 fallback, and the **Rule 29 inference feature log** (the seed of skew-free
 next-generation training data).
 
+### 7. Run Phase 4 (monitoring & drift detection)
+
+```bash
+cd phase4
+python run.py
+```
+
+This runs three health layers (data / model / business) over real data and
+prints a single **pipeline gate**. The feature-drift check fires (PSI 0.47) --
+the same popularity shift Phase 2 measured as skew, now caught as a blocking,
+monitorable signal.
+
 ---
 
 ## Running the tests
@@ -173,6 +189,7 @@ CI runs the same suite on every push and pull request (Python 3.9 and 3.11).
 - [x] Phase 1 -- two-tower candidate generation
 - [x] Phase 2 -- logistic-regression ranker + point-in-time feature store
 - [x] Phase 3 -- serving architecture (100ms request path, fallback, feature logging)
-- [ ] Phase 4+ -- monitoring / drift detection, A/B testing, near-real-time freshness
+- [x] Phase 4 -- monitoring & drift detection (3 health layers, PSI gate)
+- [ ] Phase 5+ -- A/B testing, near-real-time freshness
 
 See the design doc for the full multi-phase plan.

@@ -106,6 +106,19 @@ skew-free training data a byproduct of serving.
 **Reflex:** if you can't answer "what features did the model see for this exact
 request?", you can't train v2 safely.
 
+## 13. The scary failures are silent -- and drift ties the system together
+
+ML systems rot without raising exceptions: stale features, out-of-stock items,
+null columns, shifting priors. Our drift monitor caught a **PSI of 0.47** between
+train and serve windows -- the *same* popularity shift that caused the 2-2.8x
+skew in Phase 2, now surfaced as a deploy-blocking signal. Measuring one
+phenomenon two independent ways and having them agree is how you earn trust in a
+system.
+
+**Reflex:** monitor inputs (drift), behavior (fallback, calibration, diversity),
+and outcomes (business metrics) -- and make at least one of them a *gate*, not
+just a dashboard. A red gate is information, not an insult.
+
 ---
 
 ## The meta-lesson

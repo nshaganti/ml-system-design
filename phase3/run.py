@@ -35,6 +35,7 @@ from evaluate import temporal_split
 
 from feature_store import PointInTimeFeatureStore
 from lr_ranker import LRRanker
+from training import build_labelled_features
 
 from candidate_generator import PopularityCandidateGenerator
 from service import RecommendationService, RecommendationRequest
@@ -45,18 +46,7 @@ MAX_POSITIVES = 100_000
 
 def build_training_set(train_events, store, rng):
     """Positives = strong events; negatives = a random item. (Phase 2 pattern.)"""
-    strong = train_events.filter(pl.col("event_type").is_in(["add_to_cart", "purchase"]))
-    if len(strong) > MAX_POSITIVES:
-        strong = strong.sample(MAX_POSITIVES, seed=SEED)
-    all_items = train_events["item_id"].unique().to_list()
-
-    pos = strong.select(["user_id", "item_id", "timestamp_ms"]).with_columns(pl.lit(1).alias("label"))
-    neg_items = rng.choice(np.array(all_items), size=len(pos))
-    neg = pos.select(["user_id", "timestamp_ms"]).with_columns(
-        pl.Series("item_id", neg_items).cast(pl.Utf8), pl.lit(0).alias("label"),
-    ).select(["user_id", "item_id", "timestamp_ms", "label"])
-
-    return store.get_historical_features(pl.concat([pos, neg]))
+    return build_labelled_features(train_events, store, rng, max_positives=MAX_POSITIVES, seed=SEED)
 
 
 def derive_out_of_stock(item_props: pl.DataFrame, cutoff_ms: int) -> set[str]:

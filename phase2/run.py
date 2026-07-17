@@ -35,6 +35,7 @@ from metrics import ndcg_at_k, average_precision_at_k, recall_at_k, mean
 
 from feature_store import PointInTimeFeatureStore, FEATURE_COLUMNS
 from lr_ranker import LRRanker
+from training import build_labelled_features
 
 MAX_POSITIVES   = 100_000   # cap training rows for speed
 CANDIDATE_POOL  = 500       # popularity candidate pool the ranker reorders
@@ -49,25 +50,7 @@ def build_training_set(
     rng: np.random.Generator,
 ) -> pl.DataFrame:
     """Positives = strong events; negatives = a random item at the same time."""
-    strong = train_events.filter(pl.col("event_type").is_in(["add_to_cart", "purchase"]))
-    if len(strong) > MAX_POSITIVES:
-        strong = strong.sample(MAX_POSITIVES, seed=SEED)
-
-    all_items = train_events["item_id"].unique().to_list()
-
-    pos = strong.select(["user_id", "item_id", "timestamp_ms"]).with_columns(
-        pl.lit(1).alias("label")
-    )
-    # Negative: same user + timestamp, a random item (approximate; fine for demo)
-    neg_items = rng.choice(np.array(all_items), size=len(pos))
-    neg = pos.select(["user_id", "timestamp_ms"]).with_columns(
-        pl.Series("item_id", neg_items).cast(pl.Utf8),
-        pl.lit(0).alias("label"),
-    ).select(["user_id", "item_id", "timestamp_ms", "label"])
-
-    entity = pl.concat([pos, neg])
-    # Point-in-time correct features -- the RIGHT way (Rule 29).
-    return store.get_historical_features(entity)
+    return build_labelled_features(train_events, store, rng, max_positives=MAX_POSITIVES, seed=SEED)
 
 
 def measure_skew(entity_df: pl.DataFrame, store: PointInTimeFeatureStore) -> None:

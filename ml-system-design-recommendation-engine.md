@@ -382,6 +382,15 @@ Kafka events
               +--> PagerDuty alert if drift > threshold
 ```
 
+> **In practice (this repo).** [`phase4/`](phase4/) implements the three health
+> layers as check functions with a single pass/fail **pipeline gate**. The numeric
+> core (PSI, KL, ECE) is pure and unit-tested. On real data the gate goes **FAIL**
+> -- the feature-drift check fires at **PSI 0.47** (major shift). That is not a
+> bug: it's the *same* popularity drift that produced the 2-2.8x training-serving
+> skew in Phase 2, now surfaced as a monitorable, deploy-blocking signal. Model
+> health stays green (0% fallback, 18.9 categories of diversity, calibration ECE
+> 0.07). Full walkthrough: [`docs/phase4.md`](docs/phase4.md).
+
 ---
 
 ## Phase 5: Experimentation -- A/B Testing (Rule 16)
