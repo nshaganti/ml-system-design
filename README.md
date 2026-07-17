@@ -26,6 +26,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase4.md`](docs/phase4.md) -- monitoring and drift detection: three health layers, PSI drift caught at 0.47, and a pipeline gate.
 - [`docs/phase5.md`](docs/phase5.md) -- A/B testing: sticky assignment, a two-proportion z-test, and why our offline win came back inconclusive.
 - [`docs/phase6.md`](docs/phase6.md) -- near-real-time freshness: streaming features (no retrain) for a significant +57% hit@20 lift.
+- [`docs/results.md`](docs/results.md) -- the consolidated scoreboard: every phase's numbers, grouped by what's *actually* comparable, with the honest story (complexity bought robustness, freshness bought accuracy).
 - [`docs/lessons-learned.md`](docs/lessons-learned.md) -- the greatest-hits cheat sheet of production reflexes.
 
 ---
