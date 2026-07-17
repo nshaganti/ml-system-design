@@ -431,6 +431,16 @@ def assign_experiment_variant(user_id: str, experiment_id: str) -> str:
 
 **OSS:** [GrowthBook](https://www.growthbook.io/) is fully open-source and handles feature flags and experiment analysis in one tool.
 
+> **In practice (this repo).** [`phase5/`](phase5/) implements sticky, salted
+> `assign_variant` (SHA-256), a pure-Python two-proportion z-test (via `math.erf`,
+> no scipy), and an up-front `required_sample_size` power calculation. The replay
+> A/B test (popularity vs the LR ranker, hit@20) is a deliberate teaching result:
+> the +2% NDCG offline win from Phase 2 comes back **inconclusive** (p=0.84, CI
+> straddles zero) -- and the power analysis explains why, calling for ~14.7k users
+> per arm when we had ~1.2k (12x underpowered). The lesson: decide sample size
+> first, and never ship on a noisy number. Full walkthrough:
+> [`docs/phase5.md`](docs/phase5.md).
+
 ---
 
 ## Phase 6: Near-Realtime Freshness (Rule 8)

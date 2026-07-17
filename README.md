@@ -24,6 +24,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase2.md`](docs/phase2.md) -- the feature store, training-serving skew measured at ~2x, and the ranker that finally wins.
 - [`docs/phase3.md`](docs/phase3.md) -- the serving architecture: the 100ms request path, latency budgets, graceful fallback, and Rule 29 feature logging.
 - [`docs/phase4.md`](docs/phase4.md) -- monitoring and drift detection: three health layers, PSI drift caught at 0.47, and a pipeline gate.
+- [`docs/phase5.md`](docs/phase5.md) -- A/B testing: sticky assignment, a two-proportion z-test, and why our offline win came back inconclusive.
 - [`docs/lessons-learned.md`](docs/lessons-learned.md) -- the greatest-hits cheat sheet of production reflexes.
 
 ---
@@ -56,6 +57,9 @@ us.** Written for an ML engineer moving from notebooks to production.
 ├── phase4/                   # Monitoring & drift detection (Rule 10)
 │   ├── monitors.py           #   PSI/KL/ECE numeric core + check framework + gate
 │   └── run.py                #   phase 4 entry point (3 health layers + gate)
+├── phase5/                   # A/B testing / online experimentation (Rule 16)
+│   ├── experiment.py         #   sticky assignment + two-proportion z-test + power
+│   └── run.py                #   phase 5 entry point (replay A/B + significance)
 ├── tests/                    # pytest suite (synthetic data, no CSVs needed)
 ├── requirements.txt
 └── .github/workflows/ci.yml  # runs pytest on push / PR
@@ -156,6 +160,18 @@ prints a single **pipeline gate**. The feature-drift check fires (PSI 0.47) --
 the same popularity shift Phase 2 measured as skew, now caught as a blocking,
 monitorable signal.
 
+### 8. Run Phase 5 (A/B testing)
+
+```bash
+cd phase5
+python run.py
+```
+
+This runs an offline **replay** A/B test (popularity vs the LR ranker) with the
+real statistical machinery: sticky/salted assignment, a two-proportion z-test
+with confidence intervals, and up-front sample-size planning. Spoiler: the
+offline win comes back **inconclusive** -- a lesson in not shipping on noise.
+
 ---
 
 ## Running the tests
@@ -190,6 +206,7 @@ CI runs the same suite on every push and pull request (Python 3.9 and 3.11).
 - [x] Phase 2 -- logistic-regression ranker + point-in-time feature store
 - [x] Phase 3 -- serving architecture (100ms request path, fallback, feature logging)
 - [x] Phase 4 -- monitoring & drift detection (3 health layers, PSI gate)
-- [ ] Phase 5+ -- A/B testing, near-real-time freshness
+- [x] Phase 5 -- A/B testing (sticky assignment, z-test, power analysis)
+- [ ] Phase 6 -- near-real-time freshness
 
 See the design doc for the full multi-phase plan.

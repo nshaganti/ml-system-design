@@ -119,6 +119,40 @@ system.
 and outcomes (business metrics) -- and make at least one of them a *gate*, not
 just a dashboard. A red gate is information, not an insult.
 
+## 14. "Works on my machine" is not "works in CI" (a real pitfall we hit)
+
+Our CI went red with `OSError: [Errno 28] No space left on device` -- on the
+Python 3.9 job only, during *dependency install*, with **zero test failures**.
+The culprit: the default Linux `torch` wheel drags in ~5GB of NVIDIA CUDA
+libraries we never use for CPU tests, and it filled the runner disk. It passed
+locally because the dev machine already had a slim torch; it passed on 3.11 by a
+hair. Phase 4 didn't "break" anything -- it was a latent time bomb in the CI
+setup that finally tipped over the disk margin.
+
+The fix: install **CPU-only torch** from the PyTorch CPU wheel index first, add
+`pip --no-cache-dir`, and drop the pip cache restore.
+
+**Reflex:** pin lean, environment-appropriate dependencies for CI (CPU wheels,
+no GPU libs). And when CI fails, *read the logs before touching code* -- half the
+time the failure is the environment, not your change. We diagnosed this by pulling
+the Actions logs via the API, not by guessing.
+
+## 15. Offline lift is a hypothesis; the A/B test is the verdict
+
+Our LR ranker beat popularity by +2% NDCG offline (Phase 2). Under a proper
+two-proportion z-test it came back **p=0.84, not significant** -- the confidence
+interval straddled zero. Offline wins routinely shrink or vanish when tested,
+because offline eval can't see how users react to what they were never shown.
+
+Just as important: the experiment was **12x underpowered** (needed ~14.7k users
+per arm, had ~1.2k) -- and the sample-size math said so *before* we ran it.
+
+**Reflex:** compute required sample size BEFORE the experiment. Run until you hit
+it. Then let the p-value decide -- not the fact that one number is slightly
+higher. "Not significant" means *do not ship on this*, not "ship the bigger one."
+And assignment must be sticky and salted, or the whole comparison is silently
+contaminated.
+
 ---
 
 ## The meta-lesson
