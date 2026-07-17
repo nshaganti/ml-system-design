@@ -27,6 +27,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase5.md`](docs/phase5.md) -- A/B testing: sticky assignment, a two-proportion z-test, and why our offline win came back inconclusive.
 - [`docs/phase6.md`](docs/phase6.md) -- near-real-time freshness: streaming features (no retrain) for a significant +57% hit@20 lift.
 - [`docs/results.md`](docs/results.md) -- the consolidated scoreboard: every phase's numbers, grouped by what's *actually* comparable, with the honest story (complexity bought robustness, freshness bought accuracy).
+- [`docs/benchmarking-vs-literature.md`](docs/benchmarking-vs-literature.md) -- how we stack up against the community's actual task (session next-item). Co-visitation scores Recall@20=0.344, beating every learned model here.
 - [`docs/lessons-learned.md`](docs/lessons-learned.md) -- the greatest-hits cheat sheet of production reflexes.
 
 ---
@@ -65,6 +66,9 @@ us.** Written for an ML engineer moving from notebooks to production.
 ├── phase6/                   # Near-real-time freshness (Rule 8)
 │   ├── streaming_store.py    #   frozen batch features + live delta layer (no retrain)
 │   └── run.py                #   phase 6 entry point (frozen vs fresh experiment)
+├── phase7/                   # Session-based co-visitation (community benchmark)
+│   ├── covisitation.py       #   sessionize + item-kNN co-visitation recommender
+│   └── run.py                #   phase 7 entry point (leave-one-out next-item eval)
 ├── tests/                    # pytest suite (synthetic data, no CSVs needed)
 ├── requirements.txt
 └── .github/workflows/ci.yml  # runs pytest on push / PR
@@ -189,6 +193,19 @@ how their recommendations change **without any retraining**. The quantified
 experiment finds a significant **+57% hit@20 lift** (p=0.004) from freshness
 alone -- on this data, fresh features beat a fancier ranker.
 
+### 10. Run Phase 7 (session co-visitation benchmark)
+
+```bash
+cd phase7
+python run.py
+```
+
+This benchmarks us against the community's actual task -- session-based next-item
+prediction, leave-one-out. A simple co-visitation model scores **Recall@20=0.344**
+(vs 0.008 for popularity), beating every learned model from Phases 1-2 on the task
+they should have targeted. The honest gap analysis is in
+[`docs/benchmarking-vs-literature.md`](docs/benchmarking-vs-literature.md).
+
 ---
 
 ## Running the tests
@@ -228,5 +245,10 @@ CI runs the same suite on every push and pull request (Python 3.9 and 3.11).
 
 All six phases from the design doc are implemented, tested, and run on the real
 Retail Rocket dataset. See the [learning walkthroughs](#learning-walkthroughs-start-here).
+
+**Bonus -- Phase 7 (`phase7/`):** a session-based co-visitation benchmark against
+the community's actual task. It scores Recall@20=0.344 (leave-one-out next-item),
+beating every learned model in Phases 1-2 -- see
+[`docs/benchmarking-vs-literature.md`](docs/benchmarking-vs-literature.md).
 
 See the design doc for the full multi-phase plan.

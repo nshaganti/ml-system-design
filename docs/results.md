@@ -96,6 +96,28 @@ byte-for-byte unchanged.**
 
 ---
 
+## Group D -- Session-based next-item (Phase 7, the community protocol)
+
+*Comparable within the group.* Leave-one-out next-item within a session,
+Recall@20 / MRR@20 / NDCG@20 -- the protocol public RetailRocket notebooks and
+the session-rec literature use. **Not comparable to Groups A-C** (different task:
+next *item in session* vs next *purchase*, and a much easier target).
+
+| Metric | Popularity | Co-visitation | Lift |
+|---|---|---|---|
+| Recall@20 | 0.0079 | **0.3440** | +4236% |
+| MRR@20 | 0.0009 | **0.1541** | +16951% |
+| NDCG@20 | 0.0023 | **0.1971** | +8316% |
+
+**Verdict:** a simple, untuned, pure-Python co-visitation model **beats every
+learned model from Phases 1-2** when measured on the task those models should
+have targeted. 0.344 Recall@20 is a legitimate session-rec number. This is the
+clearest evidence of where Phases 0-6 underperformed: we ignored the session
+signal and session co-visitation -- the dominant approach on this data. See
+[`benchmarking-vs-literature.md`](benchmarking-vs-literature.md).
+
+---
+
 ## What each phase actually bought
 
 Accuracy is only one axis. Most phases traded in a *different* currency -- and
@@ -110,6 +132,13 @@ that's the real story of going from prototype to production.
 | 4 Monitoring | **trust** (PSI 0.47 drift caught, gate) | no accuracy change | flat |
 | 5 A/B testing | **honesty** (don't ship noise) | inconclusive | flat |
 | 6 Freshness | **fresh data** | +57% hit@20, significant | **up (big)** |
+
+> **Coda (Phase 7).** After benchmarking against the community's actual task
+> (session next-item), a simple co-visitation model scored Recall@20=0.344 --
+> beating every learned model here on the task they should have targeted. The
+> lesson compounds: it wasn't a model-complexity problem, it was a *task-framing
+> and candidate-generation* problem. See
+> [`benchmarking-vs-literature.md`](benchmarking-vs-literature.md).
 
 **The lesson in one line:** we spent six phases adding complexity, and the complexity
 mostly bought *robustness, correctness, and trust* -- not raw accuracy. The one
@@ -130,6 +159,7 @@ cd phase1 && python run.py     # Group A: two-tower vs Phase 0
 cd phase2 && python run.py     # Group B: LR ranker vs popularity + skew
 cd phase5 && python run.py     # Group C: A/B replay (inconclusive)
 cd phase6 && python run.py     # Group C: frozen vs fresh (significant)
+cd phase7 && python run.py     # Group D: session co-visitation benchmark
 ```
 
 Small run-to-run variation is expected (negative sampling, user subsampling); the

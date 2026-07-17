@@ -167,6 +167,24 @@ slow (models -> retrain them). Reach for online learning only when streaming
 features genuinely can't meet the SLA -- it adds real failure modes
 (catastrophic forgetting, time-skew) for a usually-small marginal gain.
 
+## 17. Benchmark against the right TASK, and measure it yourself
+
+We spent six phases on next-*purchase* over the full catalog. The community task
+for this dataset is next-*item in a session*. When we finally implemented the
+community-standard method (co-visitation) and eval (leave-one-out), a simple,
+untuned, pure-Python model hit **Recall@20=0.344** -- beating every learned model
+we'd built. It was never a model-complexity problem; it was a **task-framing and
+candidate-generation** problem.
+
+Also note *how* we answered "how did others do it?": we had no web access, so
+instead of citing (i.e. fabricating) leaderboard numbers, we **built the standard
+method and measured it on our own data**. A measured +4236% beats a cited number
+you can't reproduce.
+
+**Reflex:** confirm you're solving the same task others benchmark before comparing
+numbers. And when you can't verify an external claim, reproduce it -- don't quote
+it. Never fabricate a comparison.
+
 ---
 
 ## The meta-lesson
