@@ -21,14 +21,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
 
       - name: Install dependencies
-        # The tests only need polars, numpy, torch, and pytest -- installing the
-        # full requirements.txt keeps CI honest about what the project declares.
+        # Install CPU-only torch FIRST from the PyTorch CPU wheel index. The
+        # default Linux torch wheel drags in ~5GB of NVIDIA CUDA libraries we
+        # don't need for CPU tests -- that filled the runner disk (Errno 28).
+        # --no-cache-dir keeps pip from doubling disk usage with a wheel cache.
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+          pip install --no-cache-dir -r requirements.txt
 
       - name: Run test suite
         # The suite uses only small synthetic data -- no dataset download needed.
