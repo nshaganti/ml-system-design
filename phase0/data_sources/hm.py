@@ -9,7 +9,7 @@ Drop into data/:
     articles.csv             (article_id + rich metadata)
     customers.csv            (customer_id + age, club status, ...)
 
-Key differences from Retail Rocket (documented in docs/dataset-hm.md):
+Key differences from Retail Rocket (documented in docs/datasets.md):
   * PURCHASES ONLY -- no views/carts. So `event_type` is always "purchase".
   * DAILY timestamp granularity (t_dat is a date). Same-day purchases share a
     timestamp; Phase 7 sessionization treats a customer's day as one session,
