@@ -17,10 +17,10 @@ from streaming_store import StreamingFeatureStore
 
 def _events():
     rows = [
-        ("u1", "purchase",    "a", 10),
-        ("u2", "add_to_cart", "b", 11),
-        ("u3", "purchase",    "a", 12),
-        ("u1", "purchase",    "b", 13),
+        ("u1", "strong",    "a", 10),
+        ("u2", "medium", "b", 11),
+        ("u3", "strong",    "a", 12),
+        ("u1", "strong",    "b", 13),
     ]
     return pl.DataFrame(
         {
@@ -56,7 +56,7 @@ def _batch():
 def test_streamed_event_bumps_features():
     sfs = StreamingFeatureStore(_batch())
     before = sfs.get_online_features("u1", "a")
-    sfs.ingest("u1", "a", "purchase")
+    sfs.ingest("u1", "a", "strong")
     after = sfs.get_online_features("u1", "a")
     assert after["item_pop"] == before["item_pop"] + 1
     assert after["user_pop"] == before["user_pop"] + 1
@@ -73,7 +73,7 @@ def test_before_ingest_matches_batch():
 def test_only_strong_events_move_popularity():
     sfs = StreamingFeatureStore(_batch())
     before = sfs.get_online_features("u1", "a")
-    sfs.ingest("u1", "a", "view")   # weak event -> no popularity change
+    sfs.ingest("u1", "a", "weak")   # weak event -> no popularity change
     after = sfs.get_online_features("u1", "a")
     assert after["item_pop"] == before["item_pop"]
     assert after["user_pop"] == before["user_pop"]
@@ -83,7 +83,7 @@ def test_only_strong_events_move_popularity():
 
 def test_cross_feature_only_bumps_matching_category():
     sfs = StreamingFeatureStore(_batch())
-    sfs.ingest("u1", "a", "purchase")   # item a is CAT_A
+    sfs.ingest("u1", "a", "strong")   # item a is CAT_A
     # affinity to CAT_A (item a) went up; affinity to CAT_B (item b) did not.
     assert sfs.get_online_features("u1", "a")["user_cat_affinity"] >= 1
     b_before = _batch().get_online_features("u1", "b")["user_cat_affinity"]
@@ -92,8 +92,8 @@ def test_cross_feature_only_bumps_matching_category():
 
 def test_session_seen_tracks_all_items():
     sfs = StreamingFeatureStore(_batch())
-    sfs.ingest("u1", "a", "purchase")
-    sfs.ingest("u1", "b", "view")
+    sfs.ingest("u1", "a", "strong")
+    sfs.ingest("u1", "b", "weak")
     assert sfs.session_seen("u1") == {"a", "b"}
     assert sfs.session_seen("nobody") == set()
 
@@ -115,7 +115,7 @@ def test_batch_read_reflects_deltas():
     sfs = StreamingFeatureStore(_batch())
     entity = pl.DataFrame({"user_id": ["u1"], "item_id": ["a"]})
     before = sfs.get_online_features_batch(entity)["item_pop"][0]
-    sfs.ingest("u1", "a", "purchase")
+    sfs.ingest("u1", "a", "strong")
     after = sfs.get_online_features_batch(entity)["item_pop"][0]
     assert after == before + 1
 

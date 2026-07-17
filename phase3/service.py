@@ -10,7 +10,7 @@ The flow (design doc, Phase 3):
     2. Candidate generation (Stage 1) (~10ms)  Popularity / two-tower ANN
     3. Batch fetch item features      (~15ms)  Feature store online lookup
     4. Rank candidates (Stage 2)      (~30ms)  LR ranker
-    5. Apply business rules           (~2ms)   Drop OOS, already-seen
+    5. Apply business rules           (~2ms)   Drop ineligible, already-seen
     6. Return top-N + async feature log
 
 Three production concepts this module makes concrete:
@@ -89,14 +89,14 @@ class RecommendationService:
         feature_store,                       # PointInTimeFeatureStore
         ranker=None,                         # LRRanker or None
         model_version: str = "lr_ranker_v1",
-        out_of_stock: set[str] | None = None,
+        ineligible_items: set[str] | None = None,
         latency_budget_ms: float = 100.0,
     ):
         self.cg = candidate_generator
         self.store = feature_store
         self.ranker = ranker
         self.model_version = model_version
-        self.out_of_stock = out_of_stock or set()
+        self.ineligible_items = ineligible_items or set()
         self.latency_budget_ms = latency_budget_ms
         # Rule 29: the inference feature log. In production this is an async write
         # to Kafka/Iceberg; here it's an in-memory list you can inspect.
@@ -131,7 +131,7 @@ class RecommendationService:
         with _Stopwatch(latency, "business_rules"):
             final = [
                 item for item in ranked
-                if item not in self.out_of_stock and item not in already_seen
+                if item not in self.ineligible_items and item not in already_seen
             ][: request.n]
 
         # --- Async inference feature log (Rule 29) ------------------------

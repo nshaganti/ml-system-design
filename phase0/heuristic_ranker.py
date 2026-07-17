@@ -11,14 +11,12 @@ Google's Rule 7: Encode domain knowledge as features, not discarded alternatives
 import polars as pl
 from dataclasses import dataclass, field
 
+from signals import SIGNAL_WEIGHTS, TARGET_SIGNAL
 
-# Event weights for the popularity score.
-# Purchases signal stronger intent than add-to-carts, which signal more than views.
-EVENT_WEIGHTS = {
-    "purchase":    3.0,
-    "add_to_cart": 2.0,
-    "impression":  1.0,
-}
+# Event weights for the popularity score come from the signal taxonomy
+# (Rule 7: encode domain knowledge in one place). A target action counts more
+# than an engagement, which counts more than a mere exposure.
+EVENT_WEIGHTS = SIGNAL_WEIGHTS
 
 # How far back to look when computing item popularity.
 POPULARITY_WINDOW_DAYS = 7
@@ -68,8 +66,8 @@ class HeuristicRanker:
             raise ValueError("No training events in the specified window. Check your cutoff timestamp.")
 
         # Weighted popularity score per item
-        # Rule 7: this heuristic encodes real domain knowledge —
-        # purchases matter more than views.
+        # Rule 7: this heuristic encodes real domain knowledge --
+        # a target action matters more than a mere exposure.
         self.item_scores = (
             train_events
             .with_columns(
@@ -140,16 +138,16 @@ class HeuristicRanker:
                 )
                 ranked = ranked.join(items_in_cats.select("item_id"), on="item_id", how="inner")
 
-            # Exclude items the user has already purchased
-            already_bought = (
+            # Exclude items the user has already consumed (target action)
+            already_consumed = (
                 user_events
-                .filter(pl.col("event_type") == "purchase")
+                .filter(pl.col("event_type") == TARGET_SIGNAL)
                 ["item_id"]
                 .unique()
                 .to_list()
             )
-            if already_bought:
-                ranked = ranked.filter(~pl.col("item_id").is_in(already_bought))
+            if already_consumed:
+                ranked = ranked.filter(~pl.col("item_id").is_in(already_consumed))
 
         # If category filtering left us with fewer than n items, fall back to global top-n
         if len(ranked) < n:
@@ -164,7 +162,7 @@ class HeuristicRanker:
     ) -> list[str]:
         """
         Infer top-k category preferences from a user's history.
-        Purchases count more than views (same weighting as popularity score).
+        Stronger signals count more (same weighting as the popularity score).
         """
         weighted_events = user_events.with_columns(
             pl.col("event_type").replace(EVENT_WEIGHTS).cast(pl.Float64).alias("weight")

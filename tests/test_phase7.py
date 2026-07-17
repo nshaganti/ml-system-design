@@ -22,7 +22,7 @@ def _df(rows):
         {
             "user_id":      [r[0] for r in rows],
             "item_id":      [r[1] for r in rows],
-            "event_type":   ["view"] * len(rows),
+            "event_type":   ["weak"] * len(rows),
             "timestamp_ms": [r[2] for r in rows],
         }
     ).with_columns(pl.col("timestamp_ms").cast(pl.Int64))

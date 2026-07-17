@@ -30,9 +30,11 @@ import polars as pl
 import torch
 from torch.utils.data import Dataset
 
-MIN_STRONG_INTERACTIONS = 3   # item must appear in ≥N cart/purchase events to enter vocab
+from signals import POSITIVE_SIGNALS
+
+MIN_STRONG_INTERACTIONS = 3   # item must appear in >=N positive events to enter vocab
 MAX_HISTORY_LEN         = 50  # cap user history to most-recent N items (memory + speed)
-STRONG_EVENT_TYPES      = {"add_to_cart", "purchase"}  # what counts as a positive
+POSITIVE_SIGNAL_TYPES   = set(POSITIVE_SIGNALS)  # engagement-or-stronger = a positive
 
 # Exponent for popularity-based negative sampling (word2vec's 0.75 trick).
 # Sampling negatives ∝ count**0.75 gives HARDER negatives than uniform:
@@ -76,7 +78,7 @@ def build_vocab(train_events: pl.DataFrame) -> ItemVocab:
     high-quality. Items outside the vocab fall back to Phase 0.
     """
     strong_events = train_events.filter(
-        pl.col("event_type").is_in(list(STRONG_EVENT_TYPES))
+        pl.col("event_type").is_in(list(POSITIVE_SIGNAL_TYPES))
     )
 
     item_counts = (
@@ -164,7 +166,7 @@ class BPRDataset(Dataset):
 
         # Build positives: (user_id, positive_item_idx)
         strong_events = train_events.filter(
-            pl.col("event_type").is_in(list(STRONG_EVENT_TYPES))
+            pl.col("event_type").is_in(list(POSITIVE_SIGNAL_TYPES))
             & pl.col("item_id").is_in(list(vocab.item_id_to_idx.keys()))
         )
 

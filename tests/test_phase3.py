@@ -19,14 +19,14 @@ from service import RecommendationService, RecommendationRequest
 
 def _events():
     rows = [
-        ("u1", "purchase",    "a", 10),
-        ("u2", "add_to_cart", "b", 11),
-        ("u1", "purchase",    "c", 12),
-        ("u3", "purchase",    "a", 13),
-        ("u2", "purchase",    "a", 14),
-        ("u3", "add_to_cart", "b", 15),
-        ("u1", "purchase",    "b", 16),
-        ("u2", "purchase",    "a", 17),  # gives 'a' a clear popularity lead
+        ("u1", "strong",    "a", 10),
+        ("u2", "medium", "b", 11),
+        ("u1", "strong",    "c", 12),
+        ("u3", "strong",    "a", 13),
+        ("u2", "strong",    "a", 14),
+        ("u3", "medium", "b", 15),
+        ("u1", "strong",    "b", 16),
+        ("u2", "strong",    "a", 17),  # gives 'a' a clear popularity lead
     ]
     return pl.DataFrame(
         {
@@ -66,7 +66,7 @@ def test_popularity_generator_is_user_agnostic():
 def _service(ranker=None, oos=None):
     store = _store()
     cg = PopularityCandidateGenerator(store._item_totals, pool_size=10)
-    return RecommendationService(cg, store, ranker=ranker, out_of_stock=oos or set())
+    return RecommendationService(cg, store, ranker=ranker, ineligible_items=oos or set())
 
 
 def test_service_returns_requested_count():

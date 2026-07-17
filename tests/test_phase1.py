@@ -30,14 +30,14 @@ def _strong_events():
     rows = []
     # hot: enough strong events across a few users to clear the threshold
     for i in range(MIN_STRONG_INTERACTIONS + 1):
-        rows.append((f"u{i}", "add_to_cart", "hot", base + i))
+        rows.append((f"u{i}", "medium", "hot", base + i))
     # warm: exactly at the threshold
     for i in range(MIN_STRONG_INTERACTIONS):
-        rows.append((f"w{i}", "purchase", "warm", base + 100 + i))
+        rows.append((f"w{i}", "strong", "warm", base + 100 + i))
     # rare: below threshold -> excluded from vocab
-    rows.append(("u0", "add_to_cart", "rare", base + 200))
+    rows.append(("u0", "medium", "rare", base + 200))
     # a bunch of views that must NOT create vocab entries
-    rows.append(("u0", "impression", "viewonly", base + 300))
+    rows.append(("u0", "weak", "viewonly", base + 300))
 
     return pl.DataFrame(
         {
@@ -79,7 +79,7 @@ def test_vocab_encode_decode_roundtrip():
 def test_build_user_histories_dedups_and_caps():
     base = 1_600_000_000_000
     # u0 interacts with 'hot' many times -> dedup to a single entry.
-    rows = [("u0", "add_to_cart", "hot", base + i) for i in range(MAX_HISTORY_LEN + 5)]
+    rows = [("u0", "medium", "hot", base + i) for i in range(MAX_HISTORY_LEN + 5)]
     events = pl.DataFrame(
         {
             "user_id":      [r[0] for r in rows],
@@ -136,9 +136,9 @@ def test_bpr_dataset_popularity_sampling_runs():
     rows = []
     for item in ("a", "b", "c", "d"):
         for i in range(MIN_STRONG_INTERACTIONS):
-            rows.append((f"seed_{item}_{i}", "purchase", item, base + i))
-    rows.append(("hero", "purchase", "a", base + 500))
-    rows.append(("hero", "purchase", "b", base + 501))
+            rows.append((f"seed_{item}_{i}", "strong", item, base + i))
+    rows.append(("hero", "strong", "a", base + 500))
+    rows.append(("hero", "strong", "b", base + 501))
     events = pl.DataFrame(
         {
             "user_id":      [r[0] for r in rows],
@@ -163,10 +163,10 @@ def test_bpr_dataset_negatives_outside_history():
     rows = []
     for item in ("a", "b", "c"):
         for i in range(MIN_STRONG_INTERACTIONS):
-            rows.append((f"seed_{item}_{i}", "purchase", item, base + i))
+            rows.append((f"seed_{item}_{i}", "strong", item, base + i))
     # the user we care about interacts with a and b (context + positive)
-    rows.append(("hero", "purchase", "a", base + 500))
-    rows.append(("hero", "purchase", "b", base + 501))
+    rows.append(("hero", "strong", "a", base + 500))
+    rows.append(("hero", "strong", "b", base + 501))
     events = pl.DataFrame(
         {
             "user_id":      [r[0] for r in rows],

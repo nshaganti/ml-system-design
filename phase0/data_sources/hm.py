@@ -30,7 +30,9 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-KNOWN_EVENT_TYPES = {"purchase"}
+from signals import STRONG
+
+KNOWN_EVENT_TYPES = {STRONG}
 
 # Article metadata columns we surface as item_properties (long format).
 # The first one is mapped to "categoryid" for the feature store cross feature.
@@ -56,7 +58,7 @@ def load_events(data_dir: Path) -> pl.DataFrame:
             pl.col("t_dat").str.to_datetime("%Y-%m-%d", strict=False).dt.epoch("ms").alias("timestamp_ms"),
             pl.col("customer_id").cast(pl.Utf8).alias("user_id"),
             pl.col("article_id").cast(pl.Utf8).alias("item_id"),
-            pl.lit("purchase").alias("event_type"),
+            pl.lit(STRONG).alias("event_type"),
         ])
         .select(["timestamp_ms", "user_id", "event_type", "item_id"])
         .sort("timestamp_ms")
@@ -120,7 +122,7 @@ def _validate_events(df: pl.DataFrame) -> None:
     nulls = {c: df[c].null_count() for c in ["user_id", "item_id", "timestamp_ms"]}
     if any(v > 0 for v in nulls.values()):
         raise ValueError(f"Null values in critical columns: {nulls}")
-    print(f"[load_data] (hm) Loaded {len(df):,} events (purchases). Schema OK.")
+    print(f"[load_data] (hm) Loaded {len(df):,} events (purchases -> STRONG). Schema OK.")
 
 
 # ---------------------------------------------------------------------------

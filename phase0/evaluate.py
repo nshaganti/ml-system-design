@@ -21,6 +21,7 @@ from __future__ import annotations
 import polars as pl
 from heuristic_ranker import HeuristicRanker
 from metrics import ndcg_at_k, average_precision_at_k, precision_at_k, mean
+from signals import POSITIVE_SIGNALS
 
 
 def temporal_split(
@@ -73,10 +74,10 @@ def recall_at_k(
 
     Returns a dict with recall@k, coverage, and cold/warm breakdown.
     """
-    # Only evaluate on users with purchases in test period
+    # Only evaluate on users with a positive signal in the test period
     test_purchasers = (
         test_events
-        .filter(pl.col("event_type") == "purchase")
+        .filter(pl.col("event_type").is_in(list(POSITIVE_SIGNALS)))
         .group_by("user_id")
         .agg(pl.col("item_id").alias("purchased_items"))
     )

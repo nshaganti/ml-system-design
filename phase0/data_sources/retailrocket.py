@@ -15,13 +15,15 @@ from pathlib import Path
 
 import polars as pl
 
-# Retail Rocket event types -> our canonical schema
+from signals import WEAK, MEDIUM, STRONG
+
+# Retail Rocket native events -> canonical signal taxonomy (see phase0/signals.py)
 EVENT_TYPE_MAP = {
-    "view":        "impression",   # user saw the item
-    "addtocart":   "add_to_cart",
-    "transaction": "purchase",
+    "view":        WEAK,     # exposure
+    "addtocart":   MEDIUM,   # engagement
+    "transaction": STRONG,   # target action
 }
-KNOWN_EVENT_TYPES = set(EVENT_TYPE_MAP.values())
+KNOWN_EVENT_TYPES = {WEAK, MEDIUM, STRONG}
 
 
 def load_events(data_dir: Path) -> pl.DataFrame:

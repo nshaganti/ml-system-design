@@ -35,21 +35,21 @@ def synthetic_events() -> pl.DataFrame:
     A tiny, deterministic event log in the canonical schema.
 
     Two users:
-      - u1: views + carts + a purchase on items i1/i2 (warm, category A)
-      - u2: a single view (effectively cold once we filter to strong events)
+      - u1: exposures + engagements + a target action on items i1/i2 (warm, category A)
+      - u2: a single exposure (effectively cold once we filter to positive signals)
     Timestamps increase so temporal_split is meaningful.
     """
     base = 1_600_000_000_000
     rows = [
-        # user_id, event_type,    item_id, offset_days
-        ("u1", "impression",  "i1", 0),
-        ("u1", "impression",  "i2", 1),
-        ("u1", "add_to_cart", "i1", 2),
-        ("u1", "add_to_cart", "i2", 3),
-        ("u1", "purchase",    "i1", 4),
-        ("u2", "impression",  "i3", 5),
-        ("u1", "add_to_cart", "i2", 6),
-        ("u1", "purchase",    "i2", 7),
+        # user_id, event_type, item_id, offset_days
+        ("u1", "weak",   "i1", 0),
+        ("u1", "weak",   "i2", 1),
+        ("u1", "medium", "i1", 2),
+        ("u1", "medium", "i2", 3),
+        ("u1", "strong", "i1", 4),
+        ("u2", "weak",   "i3", 5),
+        ("u1", "medium", "i2", 6),
+        ("u1", "strong", "i2", 7),
     ]
     return pl.DataFrame(
         {

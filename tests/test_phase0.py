@@ -38,8 +38,8 @@ def test_temporal_split_respects_fraction(synthetic_events):
 
 
 def test_event_weights_ordering():
-    # Domain knowledge: purchase > cart > view. Guard against accidental edits.
-    assert EVENT_WEIGHTS["purchase"] > EVENT_WEIGHTS["add_to_cart"] > EVENT_WEIGHTS["impression"]
+    # Domain knowledge: strong > medium > weak. Guard against accidental edits.
+    assert EVENT_WEIGHTS["strong"] > EVENT_WEIGHTS["medium"] > EVENT_WEIGHTS["weak"]
 
 
 def test_ranker_fit_and_recommend(synthetic_events, synthetic_item_properties):
@@ -57,7 +57,7 @@ def test_ranker_fit_and_recommend(synthetic_events, synthetic_item_properties):
     assert all(isinstance(x, str) for x in cold)
 
 
-def test_ranker_excludes_already_purchased(synthetic_events, synthetic_item_properties):
+def test_ranker_excludes_already_consumed(synthetic_events, synthetic_item_properties):
     cutoff = synthetic_events["timestamp_ms"].max() + 1
     ranker = HeuristicRanker().fit(
         events=synthetic_events,
@@ -67,14 +67,14 @@ def test_ranker_excludes_already_purchased(synthetic_events, synthetic_item_prop
     u1_events = synthetic_events.filter(pl.col("user_id") == "u1")
     recs = ranker.recommend(user_id="u1", user_events=u1_events, n=20)
 
-    purchased = set(
-        u1_events.filter(pl.col("event_type") == "purchase")["item_id"].to_list()
+    consumed = set(
+        u1_events.filter(pl.col("event_type") == "strong")["item_id"].to_list()
     )
-    # If the category filter leaves enough items, purchased ones are excluded.
+    # If the category filter leaves enough items, consumed ones are excluded.
     # (When it falls back to global top-n, exclusion isn't guaranteed -- so we
     #  only assert exclusion held for the items still present.)
     if len(recs) >= 20:
-        assert purchased.isdisjoint(set(recs))
+        assert consumed.isdisjoint(set(recs))
 
 
 def test_ranker_requires_fit_before_recommend():
@@ -105,7 +105,7 @@ def _test_frames():
     train = pl.DataFrame(
         {
             "user_id":      ["u1"],
-            "event_type":   ["impression"],
+            "event_type":   ["weak"],
             "item_id":      ["i1"],
             "timestamp_ms": [base],
         }
@@ -113,7 +113,7 @@ def _test_frames():
     test = pl.DataFrame(
         {
             "user_id":      ["u1", "u1"],
-            "event_type":   ["purchase", "purchase"],
+            "event_type":   ["strong", "strong"],
             "item_id":      ["i2", "i3"],
             "timestamp_ms": [base + 10, base + 11],
         }

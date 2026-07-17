@@ -33,7 +33,8 @@ def test_events_have_canonical_schema(tmp_path):
 
 def test_events_are_purchase_only(tmp_path):
     events = hm.load_events(_make(tmp_path))
-    assert events["event_type"].unique().to_list() == ["purchase"]
+    # H&M has only purchases -> all mapped to the STRONG signal level.
+    assert events["event_type"].unique().to_list() == ["strong"]
 
 
 def test_events_sorted_and_non_null(tmp_path):
@@ -83,7 +84,7 @@ def test_dispatcher_selects_hm(tmp_path, monkeypatch):
     importlib.reload(load_data)
     try:
         events = load_data.load_events()
-        assert events["event_type"].unique().to_list() == ["purchase"]
+        assert events["event_type"].unique().to_list() == ["strong"]
     finally:
         monkeypatch.delenv("DATASET", raising=False)
         monkeypatch.delenv("DATA_DIR", raising=False)

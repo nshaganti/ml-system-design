@@ -8,8 +8,8 @@ What it demonstrates:
   1. A single request through the full 100ms path, with per-stage latency
   2. p50/p99 latency over many requests (you only trust latency you measure)
   3. Graceful degradation: a broken ranker still returns results (Rule 10)
-  4. Business rules: out-of-stock items are filtered (derived from the
-     'available' item property)
+  4. Business rules: ineligible items are filtered by a policy layer (Rule 15),
+     derived from an 'eligible' item property (compliance/availability/safety/...)
   5. Rule 29 inference feature logging: the exact features served, keyed by
      request_id -- the seed of skew-free next-gen training data
 
@@ -39,6 +39,7 @@ from training import build_labelled_features
 
 from candidate_generator import PopularityCandidateGenerator
 from service import RecommendationService, RecommendationRequest
+from signals import TARGET_SIGNAL
 
 SEED = 42
 MAX_POSITIVES = 100_000
@@ -49,13 +50,17 @@ def build_training_set(train_events, store, rng):
     return build_labelled_features(train_events, store, rng, max_positives=MAX_POSITIVES, seed=SEED)
 
 
-def derive_out_of_stock(item_props: pl.DataFrame, cutoff_ms: int) -> set[str]:
-    """Most-recent 'available' value before cutoff == '0' -> out of stock."""
-    avail = item_props.filter(
-        (pl.col("property") == "available") & (pl.col("timestamp_ms") < cutoff_ms)
+def derive_ineligible_items(item_props: pl.DataFrame, cutoff_ms: int) -> set[str]:
+    """
+    Policy layer (Rule 15): items the system must NOT show, kept separate from
+    the ranker. Most-recent 'eligible' value before cutoff == '0' -> ineligible.
+    (Domain-neutral: could encode availability, compliance, safety, embargo, ...)
+    """
+    elig = item_props.filter(
+        (pl.col("property") == "eligible") & (pl.col("timestamp_ms") < cutoff_ms)
     )
     latest = (
-        avail.sort("timestamp_ms", descending=True)
+        elig.sort("timestamp_ms", descending=True)
         .unique(subset=["item_id"], keep="first")
     )
     return set(latest.filter(pl.col("value") == "0")["item_id"].to_list())
@@ -79,17 +84,17 @@ def main():
     ranker = LRRanker().fit(build_training_set(train_events, store, rng))
 
     print("\nStep 3/5: Assembling the service...")
-    oos = derive_out_of_stock(item_props, cutoff_ms)
+    ineligible = derive_ineligible_items(item_props, cutoff_ms)
     cg = PopularityCandidateGenerator(store._item_totals, pool_size=500)
     service = RecommendationService(
         candidate_generator=cg, feature_store=store, ranker=ranker,
-        out_of_stock=oos, model_version="lr_ranker_v1",
+        ineligible_items=ineligible, model_version="lr_ranker_v1",
     )
-    print(f"  candidate pool: {cg.pool_size} | out-of-stock items filtered: {len(oos):,}")
+    print(f"  candidate pool: {cg.pool_size} | ineligible items filtered: {len(ineligible):,}")
 
     # A representative sample of real users to fire requests for.
     sample_users = (
-        test_events.filter(pl.col("event_type") == "purchase")["user_id"]
+        test_events.filter(pl.col("event_type") == TARGET_SIGNAL)["user_id"]
         .unique().to_list()
     )
     rng.shuffle(sample_users)
@@ -123,7 +128,7 @@ def main():
         def rank(self, *a, **k):
             raise RuntimeError("simulated model timeout")
 
-    broken = RecommendationService(cg, store, ranker=BrokenRanker(), out_of_stock=oos)
+    broken = RecommendationService(cg, store, ranker=BrokenRanker(), ineligible_items=ineligible)
     br = broken.recommend(RecommendationRequest(user_id=sample_users[0], n=20))
     print(f"\n  Fault injection: ranker raised -> fallback_used={br.fallback_used}, "
           f"still returned {len(br.items)} items (no 500). Rule 10 in action.")

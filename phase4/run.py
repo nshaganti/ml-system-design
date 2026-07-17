@@ -7,7 +7,7 @@ pipeline-gate status (PASS/FAIL). This is the code that would run on a schedule
 
   Layer 1 (data health) : row-count volume, null rate, feature drift (PSI)
   Layer 2 (model health): fallback rate, recommendation diversity, calibration
-  Layer 3 (business)    : add-to-cart / purchase rate from the event stream
+  Layer 3 (business)    : engagement / conversion rate from the event stream
 
 We deliberately look for DRIFT between the training window and the serving
 (test) window -- because popularity genuinely shifts over time, this is where the
@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from load_data import load_events, load_item_properties
 from evaluate import temporal_split
+from signals import POSITIVE_SIGNALS, MEDIUM, STRONG, TARGET_SIGNAL
 
 from feature_store import PointInTimeFeatureStore
 from lr_ranker import LRRanker
@@ -50,12 +51,12 @@ from monitors import (
 
 SEED = 42
 DAY_MS = 86_400 * 1000
-STRONG = ["add_to_cart", "purchase"]
+POSITIVE = list(POSITIVE_SIGNALS)
 
 
 def build_test_labelled(test_events, store, rng, cap=50_000):
     """Serving-time (online) features + labels for the TEST window -> calibration."""
-    strong = test_events.filter(pl.col("event_type").is_in(STRONG))
+    strong = test_events.filter(pl.col("event_type").is_in(POSITIVE))
     if len(strong) > cap:
         strong = strong.sample(cap, seed=SEED)
     all_items = test_events["item_id"].unique().to_list()
@@ -91,10 +92,10 @@ def main():
 
     # Feature drift: item_pop (as-of-cutoff) distribution, ref vs current window.
     ref_feat = store.get_online_features_batch(
-        ref_win.filter(pl.col("event_type").is_in(STRONG)).select(["user_id", "item_id"])
+        ref_win.filter(pl.col("event_type").is_in(POSITIVE)).select(["user_id", "item_id"])
     )["item_pop"].to_numpy()
     cur_feat = store.get_online_features_batch(
-        cur_win.filter(pl.col("event_type").is_in(STRONG)).select(["user_id", "item_id"])
+        cur_win.filter(pl.col("event_type").is_in(POSITIVE)).select(["user_id", "item_id"])
     )["item_pop"].to_numpy()
 
     layer1 = [
@@ -108,7 +109,7 @@ def main():
     print("\nStep 3/4: Layer 2 -- model health...")
     item_cat = store._item_category  # item_id -> category_id
 
-    sample_users = test_events.filter(pl.col("event_type") == "purchase")["user_id"].unique().to_list()
+    sample_users = test_events.filter(pl.col("event_type") == TARGET_SIGNAL)["user_id"].unique().to_list()
     rng.shuffle(sample_users)
     sample_users = sample_users[:2000]
 
@@ -139,10 +140,10 @@ def main():
     # ---- Layer 3: business metrics ---------------------------------------
     print("\nStep 4/4: Layer 3 -- business metrics (from the event stream)...")
     n_test = test_events.height
-    atc = test_events.filter(pl.col("event_type") == "add_to_cart").height
-    buys = test_events.filter(pl.col("event_type") == "purchase").height
-    print(f"  add_to_cart rate : {atc / n_test:.4f}  ({atc:,} / {n_test:,} events)")
-    print(f"  purchase rate    : {buys / n_test:.4f}  ({buys:,} / {n_test:,} events)")
+    eng = test_events.filter(pl.col("event_type") == MEDIUM).height
+    conv = test_events.filter(pl.col("event_type") == STRONG).height
+    print(f"  engagement rate : {eng / n_test:.4f}  ({eng:,} / {n_test:,} events)")
+    print(f"  conversion rate : {conv / n_test:.4f}  ({conv:,} / {n_test:,} events)")
     print("  (In production these stream from Kafka into ClickHouse/Grafana in real time.)")
 
     # ---- Overall gate -----------------------------------------------------

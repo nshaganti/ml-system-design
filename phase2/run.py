@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from load_data import load_events, load_item_properties
 from evaluate import temporal_split
+from signals import TARGET_SIGNAL
 from metrics import ndcg_at_k, average_precision_at_k, recall_at_k, mean
 
 from feature_store import PointInTimeFeatureStore, FEATURE_COLUMNS
@@ -91,7 +92,7 @@ def evaluate_ranker(
     pool_df = pl.DataFrame({"item_id": pool})
 
     test_purchasers = (
-        test_events.filter(pl.col("event_type") == "purchase")
+        test_events.filter(pl.col("event_type") == TARGET_SIGNAL)
         .group_by("user_id")
         .agg(pl.col("item_id").alias("purchased_items"))
     )

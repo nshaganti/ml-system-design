@@ -9,16 +9,18 @@ The whole pipeline is dataset-agnostic: every phase calls load_events() /
 load_item_properties() and never knows which dataset is underneath. Pick the
 dataset with the DATASET environment variable:
 
-    DATASET=retailrocket   (default)  -> data/events.csv + item_properties_*.csv
-    DATASET=hm                        -> data/transactions_train.csv + articles.csv
+    DATASET=synthetic   (default)  -> generated in-memory, zero download
+    DATASET=retailrocket           -> data/events.csv + item_properties_*.csv
+    DATASET=hm                     -> data/transactions_train.csv + articles.csv
 
     # examples
-    cd phase0 && python run.py                 # retail rocket
-    DATASET=hm python run.py                    # H&M (once CSVs are in data/)
-    DATASET=hm HM_MAX_ROWS=2000000 python run.py  # H&M, capped for small machines
+    cd phase0 && python run.py                     # synthetic (default)
+    DATASET=retailrocket python run.py             # a real e-commerce example
+    SYNTH_USERS=5000 python run.py                 # bigger synthetic dataset
 
-Adding a new dataset = drop a module in data_sources/ with load_events() and
-load_item_properties(), then register it in _SOURCES below. No phase changes.
+Every adapter normalizes its native events into the canonical WEAK/MEDIUM/STRONG
+signal taxonomy (see phase0/signals.py). Adding a new dataset = drop a module in
+data_sources/ with load_events()/load_item_properties(), then register it below.
 """
 
 from __future__ import annotations
@@ -28,20 +30,21 @@ from pathlib import Path
 
 import polars as pl
 
-from data_sources import retailrocket, hm
+from data_sources import retailrocket, hm, synthetic
 
 # Data directory. Override with the DATA_DIR env var (handy for pointing at a
-# synthetic/sample dataset without touching the real data/ folder).
+# real dataset's CSVs). The default 'synthetic' source ignores it entirely.
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(Path(__file__).parent.parent / "data")))
 
 _SOURCES = {
-    "retailrocket": retailrocket,
-    "hm": hm,
+    "synthetic":    synthetic,     # default: domain-neutral, zero-download
+    "retailrocket": retailrocket,  # optional real-data example (e-commerce)
+    "hm":           hm,            # optional real-data example (e-commerce)
 }
 
 
 def _active_source():
-    name = os.environ.get("DATASET", "retailrocket").lower()
+    name = os.environ.get("DATASET", "synthetic").lower()
     if name not in _SOURCES:
         raise ValueError(
             f"Unknown DATASET={name!r}. Options: {sorted(_SOURCES)}."

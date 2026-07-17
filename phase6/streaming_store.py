@@ -30,7 +30,9 @@ from collections import defaultdict
 
 import polars as pl
 
-STRONG_EVENT_TYPES = ("add_to_cart", "purchase")
+from signals import POSITIVE_SIGNALS
+
+STRONG_EVENT_TYPES = tuple(POSITIVE_SIGNALS)  # engagement-or-stronger counts
 
 
 class StreamingFeatureStore:

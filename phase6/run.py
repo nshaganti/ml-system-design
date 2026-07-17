@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from load_data import load_events, load_item_properties
 from evaluate import temporal_split
+from signals import POSITIVE_SIGNALS
 
 from feature_store import PointInTimeFeatureStore
 from lr_ranker import LRRanker
@@ -50,7 +51,7 @@ from streaming_store import StreamingFeatureStore
 
 SEED = 42
 K = 20
-STRONG = ["add_to_cart", "purchase"]
+STRONG = list(POSITIVE_SIGNALS)
 
 
 def user_strong_sequences(test_events: pl.DataFrame) -> dict[str, list[tuple]]:

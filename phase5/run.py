@@ -35,6 +35,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from load_data import load_events, load_item_properties
 from evaluate import temporal_split
+from signals import TARGET_SIGNAL
 
 from feature_store import PointInTimeFeatureStore
 from lr_ranker import LRRanker
@@ -85,7 +86,7 @@ def main():
     # ---- Run the replay --------------------------------------------------
     print("\nStep 4/5: Running the replay...")
     purchases = (
-        test_events.filter(pl.col("event_type") == "purchase")
+        test_events.filter(pl.col("event_type") == TARGET_SIGNAL)
         .group_by("user_id").agg(pl.col("item_id").alias("bought"))
     )
     if purchases.height > MAX_USERS:

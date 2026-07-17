@@ -21,12 +21,12 @@ def _events():
     Item 'y' gets one strong event at t=15.
     """
     rows = [
-        ("u1", "purchase",    "x", 10),
-        ("u2", "add_to_cart", "y", 15),
-        ("u2", "purchase",    "x", 20),
-        ("u3", "purchase",    "x", 30),
+        ("u1", "strong",    "x", 10),
+        ("u2", "medium", "y", 15),
+        ("u2", "strong",    "x", 20),
+        ("u3", "strong",    "x", 30),
         # a view that must NOT count toward popularity
-        ("u4", "impression",  "x", 5),
+        ("u4", "weak",  "x", 5),
     ]
     return pl.DataFrame(
         {
@@ -113,7 +113,7 @@ def test_cross_feature_counts_prior_same_category():
     # Add a prior category-A purchase for u2 before t=20 so affinity is nonzero.
     base = _events()
     extra = pl.DataFrame(
-        {"user_id": ["u2"], "event_type": ["purchase"], "item_id": ["x"], "timestamp_ms": [12]}
+        {"user_id": ["u2"], "event_type": ["strong"], "item_id": ["x"], "timestamp_ms": [12]}
     ).with_columns(pl.col("timestamp_ms").cast(pl.Int64))
     events = pl.concat([base, extra])
     store = PointInTimeFeatureStore().fit(

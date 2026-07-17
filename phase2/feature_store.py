@@ -37,6 +37,8 @@ import warnings
 
 import polars as pl
 
+from signals import POSITIVE_SIGNALS
+
 # polars emits an informational warning on join_asof when a `by` group is given
 # (it can't verify sortedness cheaply). We always sort on timestamp_ms right
 # before each join, so this is safe to silence for clean output.
@@ -44,9 +46,9 @@ warnings.filterwarnings(
     "ignore", message="Sortedness of columns cannot be checked"
 )
 
-# What counts as a "strong" interaction for popularity features. Kept local so
-# Phase 2 stays decoupled from Phase 1's training code.
-STRONG_EVENT_TYPES = ["add_to_cart", "purchase"]
+# What counts as a positive interaction for popularity features. Sourced from the
+# signal taxonomy (Rule 7) so Phase 2 stays domain-neutral.
+STRONG_EVENT_TYPES = list(POSITIVE_SIGNALS)
 
 FEATURE_COLUMNS = ["item_pop", "user_pop", "user_cat_affinity"]
 
