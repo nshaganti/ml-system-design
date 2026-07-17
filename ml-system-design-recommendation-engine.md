@@ -468,6 +468,15 @@ You do not need to retrain the model -- you just need fresh features. For most f
 
 Retrain on streaming data as it arrives. Only introduce this complexity if streaming feature updates cannot meet your freshness SLA. Online learning introduces new failure modes: catastrophic forgetting, feature distribution instability, and time-dimension training-serving skew.
 
+> **In practice (this repo).** [`phase6/`](phase6/) implements Approach A: a
+> `StreamingFeatureStore` that wraps the frozen batch store and layers O(1) delta
+> updates on top, exposing the *same* read interface so the Phase 3 service
+> consumes it unchanged. Streaming a user's earliest in-session event and
+> measuring hit@20 on their later items gives a **significant +57% relative lift**
+> (0.0397 -> 0.0625, p=0.004) with the model **byte-for-byte unchanged**. Tellingly,
+> this dwarfs the (inconclusive) ranker upgrade from Phase 5 -- on this data, fresh
+> data beats a fancier model (Rule 8). Full walkthrough: [`docs/phase6.md`](docs/phase6.md).
+
 ---
 
 ## The Complete Architecture

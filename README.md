@@ -25,6 +25,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase3.md`](docs/phase3.md) -- the serving architecture: the 100ms request path, latency budgets, graceful fallback, and Rule 29 feature logging.
 - [`docs/phase4.md`](docs/phase4.md) -- monitoring and drift detection: three health layers, PSI drift caught at 0.47, and a pipeline gate.
 - [`docs/phase5.md`](docs/phase5.md) -- A/B testing: sticky assignment, a two-proportion z-test, and why our offline win came back inconclusive.
+- [`docs/phase6.md`](docs/phase6.md) -- near-real-time freshness: streaming features (no retrain) for a significant +57% hit@20 lift.
 - [`docs/lessons-learned.md`](docs/lessons-learned.md) -- the greatest-hits cheat sheet of production reflexes.
 
 ---
@@ -60,6 +61,9 @@ us.** Written for an ML engineer moving from notebooks to production.
 ├── phase5/                   # A/B testing / online experimentation (Rule 16)
 │   ├── experiment.py         #   sticky assignment + two-proportion z-test + power
 │   └── run.py                #   phase 5 entry point (replay A/B + significance)
+├── phase6/                   # Near-real-time freshness (Rule 8)
+│   ├── streaming_store.py    #   frozen batch features + live delta layer (no retrain)
+│   └── run.py                #   phase 6 entry point (frozen vs fresh experiment)
 ├── tests/                    # pytest suite (synthetic data, no CSVs needed)
 ├── requirements.txt
 └── .github/workflows/ci.yml  # runs pytest on push / PR
@@ -172,6 +176,18 @@ real statistical machinery: sticky/salted assignment, a two-proportion z-test
 with confidence intervals, and up-front sample-size planning. Spoiler: the
 offline win comes back **inconclusive** -- a lesson in not shipping on noise.
 
+### 9. Run Phase 6 (near-real-time freshness)
+
+```bash
+cd phase6
+python run.py
+```
+
+This streams a user's in-session behavior into the online feature store and shows
+how their recommendations change **without any retraining**. The quantified
+experiment finds a significant **+57% hit@20 lift** (p=0.004) from freshness
+alone -- on this data, fresh features beat a fancier ranker.
+
 ---
 
 ## Running the tests
@@ -207,6 +223,9 @@ CI runs the same suite on every push and pull request (Python 3.9 and 3.11).
 - [x] Phase 3 -- serving architecture (100ms request path, fallback, feature logging)
 - [x] Phase 4 -- monitoring & drift detection (3 health layers, PSI gate)
 - [x] Phase 5 -- A/B testing (sticky assignment, z-test, power analysis)
-- [ ] Phase 6 -- near-real-time freshness
+- [x] Phase 6 -- near-real-time freshness (streaming features, no retrain)
+
+All six phases from the design doc are implemented, tested, and run on the real
+Retail Rocket dataset. See the [learning walkthroughs](#learning-walkthroughs-start-here).
 
 See the design doc for the full multi-phase plan.

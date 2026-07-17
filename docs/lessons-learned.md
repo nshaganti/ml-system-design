@@ -153,6 +153,20 @@ higher. "Not significant" means *do not ship on this*, not "ship the bigger one.
 And assignment must be sticky and salted, or the whole comparison is silently
 contaminated.
 
+## 16. Fresh data can beat a better model
+
+The single largest, most clearly-significant win in this entire project was not
+an algorithm. Streaming one in-session event into the online feature store --
+with the model **byte-for-byte unchanged** -- lifted hit@20 by **+57%**
+(p=0.004). The Phase 5 ranker upgrade, by contrast, was inconclusive. Same
+statistics, opposite verdict.
+
+**Reflex:** before tuning the model, ask whether your features are *fresh* and
+*correct*. Separate what changes fast (features -> stream them) from what changes
+slow (models -> retrain them). Reach for online learning only when streaming
+features genuinely can't meet the SLA -- it adds real failure modes
+(catastrophic forgetting, time-skew) for a usually-small marginal gain.
+
 ---
 
 ## The meta-lesson
