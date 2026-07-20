@@ -35,3 +35,9 @@ jobs:
       - name: Run test suite
         # The suite uses only small synthetic data -- no dataset download needed.
         run: pytest tests/ -q
+
+      - name: Check scoreboard is in sync with results.json
+        # Fails if docs/results.md tables drifted from the committed phase
+        # results.json -- i.e. someone edited numbers by hand instead of via
+        # scripts/build_results.py. Uses committed JSON, so no dataset needed.
+        run: python scripts/build_results.py --check

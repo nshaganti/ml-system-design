@@ -136,10 +136,27 @@ def group_e(p8: dict) -> str:
     return "\n".join(out)
 
 
+def group_f(p9: dict) -> str:
+    naive = p9["v_naive_policy"]
+
+    def rel(v: float) -> str:
+        return f"{(v / naive - 1) * 100:+.0f}%" if naive else "n/a"
+
+    return "\n".join([
+        "| Policy (how it was learned) | True value | vs naive |",
+        "|---|---|---|",
+        f"| uniform random (no learning) | {p9['v_uniform']:.3f} | {rel(p9['v_uniform'])} |",
+        f"| pi_naive = softmax(biased-log rates) | {naive:.3f} | -- |",
+        f"| **pi_learned = softmax(random-log rates)** | "
+        f"**{p9['v_learned_policy']:.3f}** | **{rel(p9['v_learned_policy'])}** |",
+        f"| pi_greedy = argmax(random-log rates) | {p9['v_greedy_policy']:.3f} | {rel(p9['v_greedy_policy'])} |",
+    ])
+
+
 # --------------------------------------------------------------- main
 
 def build(text: str) -> str:
-    p = {n: load(n) for n in range(9)}
+    p = {n: load(n) for n in range(10)}
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -150,6 +167,8 @@ def build(text: str) -> str:
         text = replace_block(text, "groupD", group_d(p[7]))
     if p[8]:
         text = replace_block(text, "groupE", group_e(p[8]))
+    if p[9]:
+        text = replace_block(text, "groupF", group_f(p[9]))
     return text
 
 

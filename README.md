@@ -13,9 +13,10 @@ The project is in two parts:
 - **Part I -- Classic recommender (Phases 0-7):** build and ship a recommender the
   way most teams do, with production discipline (temporal eval, feature stores,
   serving SLAs, monitoring, honest A/B).
-- **Part II -- Causality-aware evaluation (Phase 8):** confront the fact that the
-  offline metrics Part I trusts are *biased*, and fix it with off-policy
-  evaluation on KuaiRand's uniform-random exposure log.
+- **Part II -- Causality-aware evaluation & learning (Phases 8-9):** confront the
+  fact that the offline metrics Part I trusts are *biased*, fix the *evaluation*
+  with off-policy estimators on KuaiRand's uniform-random exposure log (Phase 8),
+  then fix the *learning* itself by training a policy on unbiased data (Phase 9).
 
 The design narrative lives in two documents:
 
@@ -43,6 +44,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 **Part II -- causality-aware evaluation:**
 
 - [`docs/phase8.md`](docs/phase8.md) -- off-policy evaluation: the naive offline metric was **+100% biased**; SNIPS on the random log recovers truth to 0.6%.
+- [`docs/phase9.md`](docs/phase9.md) -- off-policy **learning**: a policy learned from the random log has **+87%** the true value of one learned from the (larger) biased log. Bias doesn't average out.
 - [`docs/off-policy-evaluation.md`](docs/off-policy-evaluation.md) -- the deep dive on IPS / SNIPS / DM / DR and why known propensities matter.
 
 **Cross-cutting:**
@@ -75,6 +77,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 ├── phase6/                   # Near-real-time freshness (Rule 8)
 ├── phase7/                   # Session-based co-visitation (community benchmark)
 ├── phase8/                   # Off-policy evaluation -- Part II (Rules 23, 36)
+├── phase9/                   # Off-policy learning -- Part II (Rules 23, 36)
 │   ├── ope.py                #   IPS / SNIPS / Direct Method / Doubly Robust / ESS
 │   └── run.py                #   biased-vs-random OPE experiment
 ├── tests/                    # pytest suite (tiny in-memory frames, no CSVs needed)
@@ -117,17 +120,32 @@ one line in the dispatcher; no phase code changes).
 
 ### 3-10. Run the phases
 
+Run everything end-to-end (each phase writes a `results.json`, then the scoreboard
+and HTML report regenerate from those numbers -- see below):
+
 ```bash
-cd phase0 && python run.py   # heuristic baseline; Recall@20 = 0.067 (writes results.json)
-cd phase1 && python run.py   # two-tower; +84% recall vs Phase 0 (MLflow-tracked)
-cd phase2 && python run.py   # LR ranker + point-in-time feature store + skew audit
-cd phase3 && python run.py   # serving: p50 4.1ms, load test, fault-injection fallback
-cd phase4 && python run.py   # monitoring: 3 health layers + a blocking pipeline gate
-cd phase5 && python run.py   # A/B replay: significant -9%, do NOT ship the weak ranker
-cd phase6 && python run.py   # freshness: streamed features, no retrain (not significant here)
-cd phase7 && python run.py   # session co-visitation: +61% over popularity
-cd phase8 && python run.py   # PART II -- OPE: naive metric +100% biased vs SNIPS 0.6%
+python run_all.py            # runs phases 0-9, then rebuilds docs/results.md + report
 ```
+
+Or run them one at a time:
+
+```bash
+cd phase0 && python run.py   # heuristic baseline; Recall@20 = 0.068 (writes results.json)
+cd phase1 && python run.py   # two-tower; +83% recall vs Phase 0 (MLflow-tracked)
+cd phase2 && python run.py   # LR ranker + point-in-time feature store + skew audit
+cd phase3 && python run.py   # serving: p50 4.2ms, load test, fault-injection fallback
+cd phase4 && python run.py   # monitoring: 3 health layers + a blocking pipeline gate
+cd phase5 && python run.py   # A/B replay: significant -6%, do NOT ship the weak ranker
+cd phase6 && python run.py   # freshness: streamed features, no retrain (not significant here)
+cd phase7 && python run.py   # session co-visitation: +60% over popularity
+cd phase8 && python run.py   # PART II -- OPE: naive metric +100% biased vs SNIPS 0.6%
+cd phase9 && python run.py   # PART II -- OPL: policy learned on unbiased data +87% true value
+```
+
+The scoreboard in [`docs/results.md`](docs/results.md) is **auto-generated** from
+the per-phase `results.json` files by `python scripts/build_results.py` -- the
+numbers in the docs can never silently drift from what the code produced. CI runs
+it with `--check` to enforce this.
 
 Inspect Phase 1 training runs with `mlflow ui --port 5000`.
 
@@ -173,6 +191,7 @@ CI runs the same suite on every push and pull request.
 **Part II -- causality-aware evaluation:**
 
 - [x] Phase 8 -- off-policy evaluation (IPS / SNIPS / DM / DR on the random log)
+- [x] Phase 9 -- off-policy learning (train a policy on unbiased data; +87% true value)
 
 All phases are implemented, tested, and run on real KuaiRand-Pure data. See the
 [learning walkthroughs](#learning-walkthroughs-start-here).

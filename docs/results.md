@@ -155,6 +155,32 @@ number can still be a factor of two wrong.* See [`phase8.md`](phase8.md) and
 
 ---
 
+## Group F -- Off-policy LEARNING (Phase 9, Part II)
+
+*Not comparable to Groups A-E -- it grades a **learned policy's true value**
+(V(pi) = sum_a pi(a) r_true(a)), where r_true comes from the random log.* Phase 8
+showed evaluating on biased logs lies; Phase 9 shows *learning* on them yields a
+genuinely worse policy -- and that learning on unbiased data fixes it.
+
+<!-- AUTOGEN:groupF -->
+| Policy (how it was learned) | True value | vs naive |
+|---|---|---|
+| uniform random (no learning) | 0.179 | -18% |
+| pi_naive = softmax(biased-log rates) | 0.217 | -- |
+| **pi_learned = softmax(random-log rates)** | **0.407** | **+87%** |
+| pi_greedy = argmax(random-log rates) | 0.587 | +170% |
+<!-- /AUTOGEN:groupF -->
+
+**Verdict:** a policy *learned* from the unbiased random log has ~**1.9x** the true
+value of one learned from the (much larger) biased production log. The data-
+efficiency sweep drives the point home: it takes ~100k unbiased rows to overtake a
+policy fit on 1.44M biased rows, and unbiased data keeps pulling ahead after that.
+**Bias doesn't average out with volume -- only unbiased data fixes it.** (Reward
+rates are Bayesian-smoothed so thinly-sampled items can't fake a perfect score.)
+See [`phase9.md`](phase9.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -168,6 +194,7 @@ number can still be a factor of two wrong.* See [`phase8.md`](phase8.md) and
 | 6 Freshness | **fresh data** (streamed, no retrain) | +0.2%, not significant | flat |
 | 7 Co-visitation | **task framing** (session signal) | +60% on session next-item | up (diff task) |
 | 8 OPE | **causal truth** | naive metric was +100% biased | -- |
+| 9 Off-policy learning | **causal learning** | unbiased-learned policy +87% true value | up (true value) |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline
