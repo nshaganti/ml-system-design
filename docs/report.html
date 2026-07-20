@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ML System Design - Scoreboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body class="bg-slate-100 text-slate-900">
+  <div class="max-w-5xl mx-auto px-4 py-10 space-y-6">
+    <header>
+      <h1 class="text-3xl font-bold text-slate-900">ML System Design - Scoreboard</h1>
+      <p class="text-slate-600 mt-2">Real results on KuaiRand-Pure (seed 42, 80/20 temporal split).
+      Auto-generated from each phase's <code>results.json</code> - the same source of
+      truth as <code>docs/results.md</code>. Regenerate with
+      <code>python scripts/build_report.py</code>.</p>
+    </header>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5">
+              <p class="text-xs uppercase tracking-wide text-slate-500">Serving p50 latency</p>
+              <p class="text-2xl font-bold text-slate-800 mt-1">4.2 ms</p>
+              <p class="text-sm text-slate-500 mt-1">p99 5.8 ms | 100% within 100ms budget</p>
+            </div><div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5">
+              <p class="text-xs uppercase tracking-wide text-slate-500">Pipeline gate</p>
+              <p class="text-2xl font-bold text-slate-800 mt-1">FAIL</p>
+              <p class="text-sm text-slate-500 mt-1">drift gate (row-count + calibration ECE 0.115)</p>
+            </div><div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5">
+              <p class="text-xs uppercase tracking-wide text-slate-500">A/B test (Phase 5)</p>
+              <p class="text-2xl font-bold text-slate-800 mt-1">-6.3%</p>
+              <p class="text-sm text-slate-500 mt-1">popularity vs LR, p=0.033 (significant)</p>
+            </div><div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5">
+              <p class="text-xs uppercase tracking-wide text-slate-500">Freshness (Phase 6)</p>
+              <p class="text-2xl font-bold text-slate-800 mt-1">+0.2%</p>
+              <p class="text-sm text-slate-500 mt-1">frozen vs fresh, p=0.903 (not significant)</p>
+            </div><div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5">
+              <p class="text-xs uppercase tracking-wide text-slate-500">Co-visitation (Phase 7)</p>
+              <p class="text-2xl font-bold text-slate-800 mt-1">+60%</p>
+              <p class="text-sm text-slate-500 mt-1">session next-item recall vs popularity</p>
+            </div>
+    </div>
+
+    
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Group A - Retrieval: heuristic vs two-tower (Phase 0 -> 1)</h2>
+      <div style="height:260px"><canvas id="chartA"></canvas></div>
+      <p class="text-sm text-slate-500 mt-3">Learned retrieval beats the heuristic on recall & coverage. Cold-start is a wash (both fall back to the same heuristic).</p>
+    </section>
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Group B - Reranking a fixed pool (Phase 2)</h2>
+      <div style="height:260px"><canvas id="chartB"></canvas></div>
+      <p class="text-sm text-slate-500 mt-3">The single weak cross-feature LR ranker LOSES to popularity order - a feature with no signal is dead weight. An honest negative result.</p>
+    </section>
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Group E - Off-policy evaluation (Phase 8)</h2>
+      <div style="height:260px"><canvas id="chartE"></canvas></div>
+      <p class="text-sm text-slate-500 mt-3">The naive offline metric overstates true value by ~2x. SNIPS on the random log recovers the truth.</p>
+    </section>
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Group F - Off-policy learning (Phase 9)</h2>
+      <div style="height:260px"><canvas id="chartF"></canvas></div><div class="mt-6"></div><div style="height:260px"><canvas id="chartFsweep"></canvas></div>
+      <p class="text-sm text-slate-500 mt-3">Left: learning from unbiased data nearly doubles true policy value. Right: bias doesn't average out - it takes ~100k unbiased rows to beat a policy fit on 1.44M biased rows (dashed = naive baseline).</p>
+    </section>
+
+    <footer class="text-center text-sm text-slate-500 pt-4">
+      Part I (Phases 0-7): build a recommender with production discipline.
+      Part II (Phases 8-9): prove the offline metric was biased, then fix the learning.
+    </footer>
+  </div>
+  <script>
+    
+        new Chart(document.getElementById('chartA'), {
+          type: 'bar',
+          data: {
+            labels: ['Recall@20', 'Warm recall', 'Cold-start', 'Coverage'],
+            datasets: [
+              { label: 'Phase 0 (heuristic)', backgroundColor: '#94a3b8',
+                 data: [0.0682, 0.0665, 0.1179, 0.0744] },
+              { label: 'Phase 1 (two-tower)', backgroundColor: '#2563eb',
+                 data: [0.1246, 0.1252, 0.1058, 0.1603] }
+            ]
+          },
+          options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+        new Chart(document.getElementById('chartB'), {
+          type: 'bar',
+          data: {
+            labels: ['Recall@20', 'NDCG@20'],
+            datasets: [
+              { label: 'Popularity order', backgroundColor: '#94a3b8',
+                 data: [0.0689, 0.0446] },
+              { label: 'LR ranker', backgroundColor: '#dc2626',
+                 data: [0.0635, 0.0386] }
+            ]
+          },
+          options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+        new Chart(document.getElementById('chartE'), {
+          type: 'bar',
+          data: {
+            labels: ['Ground truth', 'Naive / DM', 'IPS', 'SNIPS', 'Doubly Robust'],
+            datasets: [{ label: 'Estimated policy value',
+              backgroundColor: ['#16a34a', '#dc2626', '#f59e0b', '#2563eb', '#7c3aed'],
+              data: [0.2611, 0.5227, 0.2443, 0.2595, 0.2770] }]
+          },
+          options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+        new Chart(document.getElementById('chartF'), {
+          type: 'bar',
+          data: {
+            labels: ['uniform', 'naive (biased)', 'learned (random)', 'greedy skyline'],
+            datasets: [{ label: 'True value',
+              backgroundColor: ['#94a3b8', '#dc2626', '#2563eb', '#16a34a'],
+              data: [0.1792, 0.2173, 0.4069, 0.5874] }]
+          },
+          options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+        new Chart(document.getElementById('chartFsweep'), {
+          type: 'line',
+          data: {
+            labels: ['1,000', '10,000', '100,000', '1,186,059'],
+            datasets: [
+              { label: 'learned-policy true value', borderColor: '#2563eb',
+                 backgroundColor: '#2563eb', data: [0.1805, 0.1908, 0.2598, 0.4069], tension: 0.2 },
+              { label: 'naive baseline', borderColor: '#dc2626', borderDash: [6,4],
+                 pointRadius: 0, data: [0.2173, 0.2173, 0.2173, 0.2173] }
+            ]
+          },
+          options: { maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } },
+            scales: { x: { title: { display: true, text: 'random-log rows used' } } } }
+        });
+  </script>
+</body>
+</html>
