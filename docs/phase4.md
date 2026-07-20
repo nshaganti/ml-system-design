@@ -14,9 +14,10 @@ they rot quietly.
 A crashed service pages you in seconds. These don't page anyone:
 
 - A feature pipeline stalls; the model serves **week-old features**. No error.
-- An item goes **out of stock** but keeps getting recommended. No error.
+- An item becomes **ineligible** (removed/blocked) but keeps getting recommended. No error.
 - A category **goes viral**; the model's learned prior is now wrong. No error.
 - A data source silently starts sending **nulls** in a key column. No error.
+- The upstream window silently ships **half the usual rows**. No error.
 
 Each one degrades recommendations for days before anyone notices a revenue dip.
 Monitoring is the discipline of converting these silent rots into **loud,
@@ -32,7 +33,7 @@ A `Monitor` aggregates them into one **pipeline gate**: PASS or FAIL.
 |---|---|---|
 | **1. Data health** | the inputs | row-count volume, null rate, feature drift (PSI) |
 | **2. Model health** | the model's behavior | fallback rate, recommendation diversity, calibration |
-| **3. Business** | the outcome | add-to-cart rate, purchase rate (from the event stream) |
+| **3. Business** | the outcome | engagement rate (MEDIUM), target-action rate (STRONG), from the event stream |
 
 The philosophy: **catch problems as early in the chain as possible.** A data-
 health failure is cheaper to fix than a business-metric failure you discover a
@@ -84,9 +85,9 @@ defeat the point).
 **Layer 1 -- data health**
 
 ```
-[PASS] row_count_ratio      value=1.0025 (thr 0.8000) -- 124,595 vs baseline 124,283
-[PASS] null_rate            value=0.0000 (thr 0.0100) -- 0/124,595 null
-[FAIL] feature_drift_psi    value=0.4681 (thr 0.2000) -- major shift
+[FAIL] row_count_ratio      value=0.5185 (thr 0.8000) -- 122,475 vs baseline 236,208
+[PASS] null_rate            value=0.0000 (thr 0.0100) -- 0/122,475 null
+[PASS] feature_drift_psi    value=0.0237 (thr 0.2000) -- stable
 GATE: FAIL
 ```
 
@@ -94,41 +95,42 @@ GATE: FAIL
 
 ```
 [PASS] fallback_rate            value=0.0000  (thr 0.05) -- 0/2,000 requests degraded
-[PASS] recommendation_diversity value=18.87   (thr 3.0)  -- avg unique categories in top-20
-[PASS] calibration_ece          value=0.0709  (thr 0.10) -- expected calibration error
-GATE: PASS
+[PASS] recommendation_diversity value=4.02    (thr 3.0)  -- avg unique categories in top-20
+[FAIL] calibration_ece          value=0.1151  (thr 0.10) -- expected calibration error
+GATE: FAIL
 ```
 
 **Layer 3 -- business metrics**
 
 ```
-add_to_cart rate : 0.0260  (14,347 / 551,221 events)
-purchase rate    : 0.0083  ( 4,593 / 551,221 events)
+engagement rate (MEDIUM)   : 0.1292  (37,111 / 287,322 events)
+target-action rate (STRONG): 0.3201  (91,985 / 287,322 events)
 ```
 
-**Overall gate: FAIL** (driven by the drift check).
+**Overall gate: FAIL** (driven by row-count and calibration).
 
 ### Reading the numbers like an engineer
 
-- **The drift check fired -- PSI 0.47, a major shift.** This is the most important
-  result in the whole repo, because it *connects back to Phase 2*. Remember the
-  training-serving skew we measured (features inflated 2-2.8x)? That skew exists
-  precisely **because item popularity drifts over time.** Phase 2 measured the
-  cause; Phase 4's monitor detects the symptom and **blocks the pipeline.** Same
-  phenomenon, caught two different ways -- that's a healthy system.
-- **This FAIL is "correct."** On a static historical dataset, train-vs-serve drift
-  is expected. In production you'd respond by retraining on fresh data (Phase 6's
-  freshness story), not by silencing the alarm. The lesson: **a red gate is
-  information, not an insult.**
-- **The model is well-behaved where it counts.** 0% fallback (the ranker never
-  errored over 2,000 requests), 18.9 categories of diversity (no popularity
-  tunnel-vision), and an ECE of 0.07 (the LR's probabilities are trustworthy --
-  another dividend of choosing a simple, calibratable model in Phase 2).
+- **The monitor catches what is *actually* wrong -- and it differs by dataset.**
+  Feature drift is **stable here (PSI 0.024)**, so the drift alarm correctly stays
+  quiet. Instead two other checks fire: the serving window has ~half the reference
+  rows (`row_count_ratio` 0.52), and the ranker is **miscalibrated** (ECE 0.115 >
+  0.10). A good monitor doesn't have a favorite failure; it surfaces whichever one
+  is real.
+- **Contrast this with what you might expect.** On a drift-heavy dataset the PSI
+  check would be the star; here it's a non-event and the *volume* and
+  *calibration* checks earn their keep. That's exactly why you run all three
+  layers instead of betting on one metric.
+- **This FAIL is "correct."** A row-count halving and a calibration slip are
+  genuine reasons to block a deploy and make a human look. The lesson: **a red
+  gate is information, not an insult.**
+- **Where the model is well-behaved:** 0% fallback (the ranker never errored over
+  2,000 requests) and 4.0 categories of diversity in the top-20 (KuaiRand's tags
+  are coarse, so 4 distinct categories is healthy spread, not tunnel vision).
 
-> **Why block the deploy on drift?** Because shipping a new model on top of
-> drifted data bakes the drift into the next generation. The gate forces a human
-> decision: retrain, or acknowledge and proceed. Silent auto-deploy is how skew
-> compounds.
+> **Why block the deploy?** Because shipping on top of anomalous data or a
+> miscalibrated model bakes the problem into the next generation. The gate forces
+> a human decision rather than a silent auto-deploy.
 
 ---
 
@@ -137,9 +139,9 @@ purchase rate    : 0.0083  ( 4,593 / 551,221 events)
 1. **The scary failures are silent.** None of stale features, OOS items, or nulls
    throws an exception. If you're only watching for crashes, you're blind to how
    ML systems actually fail.
-2. **Drift is measurable, and it ties the whole system together.** PSI 0.47 in
-   Phase 4 is the same popularity shift that caused the 2-2.8x skew in Phase 2.
-   Measuring a phenomenon two ways and having them agree is how you build trust.
+2. **Run every layer -- don't bet on one metric.** Here PSI was quiet and the
+   *row-count* and *calibration* checks did the catching. On another dataset it's
+   the reverse. A monitor with a favorite failure mode is half-blind.
 3. **A gate turns metrics into decisions.** A dashboard nobody reads is theater.
    A check that *blocks a deploy* is a control. Wire the gate into CI/Airflow.
 4. **Calibration is a first-class metric.** A model that ranks well but lies about

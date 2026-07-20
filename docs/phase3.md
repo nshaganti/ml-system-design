@@ -65,13 +65,19 @@ The response carries `fallback_used` and flips `model_version` to `"fallback"`,
 so monitoring can *count* degraded requests -- a silent fallback is its own kind
 of outage.
 
-### 3. Business rules are features you didn't discard (Rule 7)
+### 3. Business rules are a policy layer (Rule 7)
 
-Out-of-stock items must never be recommended, no matter how high the model scores
-them. We derive the OOS set from the `available` item property (most-recent value
-before the cutoff == `"0"`) and filter it *after* ranking. On this dataset that's
-**357,094 items** filtered -- a huge, non-negotiable correctness rule that has
-nothing to do with the model.
+Some items must never be recommended regardless of model score -- ineligible,
+removed, blocked, region-locked, or age-restricted content. This is a
+domain-neutral **policy layer** applied *after* ranking: `service.py` takes an
+`ineligible_items` set (derived from an `eligible` item property) and filters it
+out of the final list.
+
+On KuaiRand there is no eligibility signal in the data, so **0 items are filtered**
+here -- and that's fine. The point is architectural: the seam exists, it runs on
+every request, and the day you *do* have an eligibility feed (a takedown list, a
+stock feed, a policy service) it plugs in without touching the model. A
+non-negotiable correctness rule should live in code, not in the loss function.
 
 ### 4. Log the exact features served (Rule 29 -- the big one)
 
@@ -88,7 +94,7 @@ self.feature_log.append({
 When you build training data for v2, you **join tomorrow's clicks to this log**,
 not to the current feature store. Why does that matter? Because the log records
 the features *as they actually were at serving time*. Joining to the current
-store would reintroduce exactly the training-serving skew we measured at 2-2.8x
+store would reintroduce exactly the training-serving skew we measured at 2-2.4x
 in [Phase 2](phase2.md). Rule 29 closes the loop: **serving generates its own
 skew-free training data.**
 
@@ -113,22 +119,22 @@ monitoring and debugging will need.
 **Single request, per-stage latency (cold):**
 
 ```
-candidate_generation    0.008 ms
-feature_fetch          22.011 ms
-ranking                 0.711 ms
-business_rules          0.072 ms
-feature_log             9.201 ms
-TOTAL                  32.000 ms   (budget 100ms -> OK)
+candidate_generation    0.005 ms
+feature_fetch           9.731 ms
+ranking                 0.704 ms
+business_rules          0.009 ms
+feature_log             0.253 ms
+TOTAL                  12.710 ms   (budget 100ms -> OK)
 ```
 
 **Load test over 2,000 real users:**
 
 | Metric | Value |
 |---|---|
-| p50 latency | **6.2 ms** |
-| p99 latency | **14.4 ms** |
+| p50 latency | **4.4 ms** |
+| p99 latency | **~9 ms** |
 | within 100ms budget | **100%** of requests |
-| out-of-stock filtered | 357,094 items |
+| ineligible items filtered | 0 (no eligibility signal in KuaiRand) |
 | inference-log rows | 40,020 |
 
 **Fault injection:** we swapped in a ranker that always raises. The service
@@ -136,12 +142,11 @@ returned 20 items anyway, `fallback_used=True`. No 500. Rule 10 in action.
 
 ### Reading the numbers like an engineer
 
-- **The first request is slow (32ms), steady-state is fast (p50 6ms).** That gap
-  is warmup -- the first `feature_fetch`/`feature_log` pay one-time costs. This is
-  why you measure p50/p99 over many requests, never a single call.
-- **`feature_fetch` dominates.** Even in a toy in-memory store, feature I/O is
-  the bottleneck -- exactly why production puts features in Redis for <5ms lookups
-  and why the design doc budgets 15ms for it. Optimize where the time actually is.
+- **The whole request is ~13ms cold, p50 4.4ms warm** -- comfortably inside the
+  100ms budget. Measure p50/p99 over many requests, never a single call.
+- **`feature_fetch` dominates (9.7ms of 12.7ms).** Even in a toy in-memory store,
+  feature I/O is the bottleneck -- exactly why production puts features in Redis
+  for sub-5ms lookups. Optimize where the time actually is.
 - **`ranking` is cheap (0.7ms)** because logistic regression is a dot product.
   This is the latency dividend of the "start simple" decision (Rule 14) -- a DNN
   ranker would cost far more here.

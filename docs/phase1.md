@@ -4,17 +4,19 @@
 > right.* The model inside the pipeline will change every week. The pipeline is
 > forever.
 
-This is where we replace hand-written rules with *learned* item embeddings. It's
-also where you'll learn a humbling production truth: **a real ML model does not
-automatically beat a good heuristic**, and figuring out *why* is the actual job.
+This is where we replace hand-written rules with *learned* item embeddings. On
+KuaiRand it delivers a clean win over the heuristic -- but the more durable lesson
+is *why* it wins here when the same model can lose on a sparser dataset. "We used
+a neural net" is never the result; "we beat the baseline by X%, measured
+temporally, and here's why" is.
 
 ---
 
 ## The problem: you can't score 50M items in 100ms
 
-In the real system there are 50M items and a 100ms latency budget. You physically
-cannot run a model on every item for every request. Every production recommender
-splits into two stages:
+In the real system there are millions of items and a 100ms latency budget. You
+physically cannot run a model on every item for every request. Every production
+recommender splits into two stages:
 
 ```
 50M items ──► [Stage 1: Candidate Generation] ──► ~500 ──► [Stage 2: Ranking] ──► 20
@@ -34,9 +36,9 @@ standard production choice) is in `phase1/two_tower.py`:
 - **A user is the mean of their history's item embeddings.**
 
 Why no user table? A user-ID embedding can only represent users seen during
-training. 30% of real sessions are new/anonymous. Mean-pooling item embeddings
-gives you a vector for **any** user with history -- including ones the model has
-never seen. This is how YouTube's and many production systems work.
+training, and a large fraction of real sessions are new/anonymous. Mean-pooling
+item embeddings gives you a vector for **any** user with history -- including ones
+the model has never seen. This is how YouTube's and many production systems work.
 
 ```python
 # user vector = average of the items they interacted with
@@ -54,12 +56,14 @@ the random one.
 loss = -mean( log( sigmoid( score(pos) - score(neg) ) ) )
 ```
 
-Crucial data decision (`dataset.py`): **positives are cart-adds and purchases
-only -- not views.** Views are 96.7% of events and carry weak intent. If you
-train on views as positives, the model just learns to reproduce a popularity
-ranker. We also drop items with fewer than 3 strong interactions -- their
-embeddings can't be learned from 1-2 examples, and a near-random embedding in
-your search index is worse than useless.
+Crucial data decision (`dataset.py`): **positives are STRONG signals only**
+(long-view / like / follow / forward / comment) -- not mere exposures or clicks.
+Weak exposures are ~54% of events and carry little intent; if you train on them as
+positives, the model just learns to reproduce a popularity ranker. We also drop
+items with fewer than 3 strong interactions -- their embeddings can't be learned
+from 1-2 examples, and a near-random embedding in your search index is worse than
+useless. (On KuaiRand this yields a 6,266-item vocab from 7,540 unique training
+items, and 535,785 BPR triples.)
 
 ## Code tour
 
@@ -80,88 +84,63 @@ your search index is worse than useless.
 
 ---
 
-## The honest result: our ML model *lost* to the heuristic
+## The result: the two-tower beats the heuristic
 
-Here's what actually happened when we ran it:
+Here's what actually happened when we ran it on KuaiRand:
 
 | Metric | Phase 0 (heuristic) | Phase 1 (two-tower) | Verdict |
 |---|---|---|---|
-| Recall@20 | **0.0310** | 0.0228 | worse (regression) |
-| Warm-user recall | **0.0474** | 0.0190 | much worse |
-| Catalog coverage | 0.0140 | 0.0118 | worse |
-| Cold-start recall | 0.0244 | 0.0244 | tie (both fall back to heuristic) |
+| Recall@20 | 0.0670 | **0.1231** | **+84%** |
+| Warm-user recall | 0.0656 | **0.1231** | +88% |
+| Catalog coverage | 0.0714 | **0.1570** | +120% |
+| Cold-start recall | 0.1175 | **0.1213** | +3% (falls back to heuristic) |
 
-**Our shiny neural model was worse than counting purchases.** This is not a bug
-in the sense of a crash -- it's the normal, sobering reality of Phase 1. The doc
-even predicts it: *"If Phase 1 doesn't beat this, the model isn't learning --
-debug features first."* So we debugged.
+**The learned model wins on every axis** -- ~1.8x recall and ~2.2x catalog
+coverage. That coverage jump matters as much as the recall: a popularity ranker
+recommends the same head items to everyone (7% of the catalog); the two-tower
+surfaces long-tail items (16%), which is what drives discovery.
 
-### Debugging step 1: is it a coverage ceiling?
+### Why it wins *here* (and when it wouldn't)
 
-First hypothesis: maybe the two-tower's 8,219-item vocab is too small to even
-contain the items people bought. We measured:
+This is the opposite of what a sparse e-commerce log usually shows, and the reason
+is the data, not the code:
 
-```
-test-purchased unique items: 3,292
-  of which in two-tower vocab: 1,292 (39.2%)
-  -> recall CEILING for two-tower alone: 39.2%
-```
+- **KuaiRand's feedback is dense.** A third of all events are strong signals, so
+  users have long, informative histories -- mean-pooling many item embeddings
+  yields a rich user vector.
+- **The catalog is small (~7.5k videos).** ID embeddings have enough interactions
+  per item to actually learn.
 
-39% is a ceiling, but it's *way* above our 2% recall. So coverage isn't the
-bottleneck -- the model has plenty of reachable items, it's just **ranking them
-badly.** On to the ranking quality itself.
+Run the *same model* on a sparse dataset (short histories, millions of items, most
+interactions weak) and it can easily **lose** to a strong popularity+category
+heuristic -- mean-pooling 2-3 embeddings is a weak user representation, and a pure
+ID model with no side features has little to work with. The lesson: model value is
+a function of the data regime, and you only learn which regime you're in by
+measuring against a real baseline.
 
-### Debugging step 2: harder negatives
+### Two design choices that make the model learn
 
-Our first version sampled negative items **uniformly at random**. The problem:
-a random tail item is a trivially easy negative -- the model learns nothing from
-"is this popular sneaker better than this obscure widget nobody wants?" The
-signal that sharpens ranking is *"why did you pick this popular item and not that
-equally-popular one?"*
+Even with favorable data, two details are doing quiet work (both baked into the
+code):
 
-Fix (`dataset.py`, the word2vec trick): sample negatives **proportional to
-popularity^0.75**. Harder negatives, better gradients.
+- **Popularity-weighted negatives (`dataset.py`).** Sampling negatives uniformly
+  at random gives trivially easy negatives ("is this popular item better than this
+  obscure one?") and weak gradients. Sampling proportional to `popularity^0.75`
+  (the word2vec trick) produces *hard* negatives -- "why this popular item and not
+  that equally-popular one?" -- which is the signal that sharpens ranking.
+- **Train/serve dot-product consistency (`index.py`).** The model trains with a
+  raw dot product, where an item embedding's *magnitude* encodes popularity -- a
+  useful signal. L2-normalizing to cosine at serving time would throw that away:
+  training-serving skew (Rule 32). The index defaults to raw dot product to match
+  training exactly.
 
-Result: warm-user recall **0.0150 → 0.0190 (+27%)**. Real improvement -- still
-below the heuristic, but the model is learning more.
+And the thing Rule 4 actually cares about: Phase 1 delivers a working, tracked,
+reproducible **pipeline** (MLflow runs, a search index, a fair eval harness). The
+model inside it is now easy to improve.
 
-### Debugging step 3: a train/serve consistency bug
+> **Where the two-tower feeds forward:** it is Stage 1 for Phase 2's ranker. A
+> good candidate generator hands the ranker a small, relevant set to work on --
+> and the ranker is where fine-grained personalization lift shows up.
 
-This one is subtle and important. The model **trains** with a raw dot product,
-where an item embedding's *magnitude* naturally grows for popular items (a useful
-signal). But the search index was **L2-normalizing** everything to cosine
-similarity at serving time -- **throwing that magnitude away.**
-
-That's training-serving skew (Rule 32: *use the same code/logic in training and
-serving*). The model optimized one objective; we served a different one. We
-changed `index.py` to default to raw dot product, matching training.
-
----
-
-## Why didn't we "win"? (The real lesson)
-
-After all three fixes, the two-tower still trails the heuristic on this dataset.
-That is a **legitimate finding, not a failure**, and here's the intuition:
-
-- Retail Rocket has **sparse, short user histories.** Mean-pooling 2-3 item
-  embeddings is a weak user representation.
-- The heuristic's **popularity + category filter is genuinely strong** for
-  e-commerce -- most purchases *are* popular in-category items.
-- A pure ID-embedding model with no side features (price, brand, recency,
-  category) has little to work with.
-
-Beating a strong heuristic takes side features, richer architectures, and
-tuning -- real work, not a config flip. **The takeaway for a production engineer:
-"we used a neural net" is not a result. "We beat the baseline by X%, measured
-temporally, and here's why" is.**
-
-What Phase 1 *did* deliver is the thing Rule 4 actually cares about: a working,
-tracked, reproducible **pipeline** (MLflow runs, an index, a fair eval harness).
-The model inside it is now easy to improve.
-
-> **Where the two-tower shines anyway:** it feeds Phase 2. Even a mediocre
-> candidate generator gives the ranker a small, relevant set to work on -- and
-> the ranker is where personalization lift actually shows up.
-
-Continue to [`phase2.md`](phase2.md) -- the feature store and the ranker that
-finally beats popularity.
+Continue to [`phase2.md`](phase2.md) -- the feature store and an honest negative
+result about feature quality.

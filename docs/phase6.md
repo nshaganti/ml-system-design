@@ -3,11 +3,12 @@
 > **Google's Rule 8:** *Know the freshness requirements of your system.* A model
 > that's a day stale can quietly cost you a large fraction of its value.
 
-This is the capstone. Everything so far -- baseline, model, feature store,
-serving, monitoring, experimentation -- assumed features were computed at the
-training cutoff and frozen. Phase 6 closes the loop: a user's behavior from *five
-minutes ago* should shape their *next* recommendation. And the payoff here is the
-biggest, most clearly-significant win in the entire repo.
+This is the capstone of Part I. Everything so far -- baseline, model, feature
+store, serving, monitoring, experimentation -- assumed features were computed at
+the training cutoff and frozen. Phase 6 closes the loop: a user's behavior from
+*five minutes ago* should be able to shape their *next* recommendation. Whether it
+*helps* turns out to be dataset-dependent -- and on KuaiRand the honest answer is
+"barely," which is a lesson in itself.
 
 ---
 
@@ -15,9 +16,9 @@ biggest, most clearly-significant win in the entire repo.
 
 Our batch feature store (Phase 2) is a snapshot at the train/serve cutoff. That's
 correct for a daily-retrained model -- but it means the store has *no idea* what a
-user did this session. Someone who just added running shoes to their cart looks
-identical to someone who did nothing. Their `user_cat_affinity` for footwear is
-whatever it was at last night's batch job: possibly zero.
+user did this session. Someone who just long-viewed three cooking videos looks
+identical to someone who did nothing. Their `user_cat_affinity` for that category
+is whatever it was at last night's batch job: possibly zero.
 
 The naive fix -- "just retrain more often" -- is both expensive and slow. You
 can't retrain a model every 30 seconds, and even hourly retraining misses the
@@ -69,7 +70,7 @@ Phase 3 paying off a second time (the first was the two-tower slotting behind th
 candidate-generator protocol).
 
 It also tracks per-session items so serving can apply the freshness rule the doc
-names directly: *don't re-show the running shoes they just bought.*
+names directly: *don't re-show the video they just watched.*
 
 ## Code tour
 
@@ -87,48 +88,53 @@ names directly: *don't re-show the running shoes they just bought.*
 **Qualitative -- one user, before vs after streaming one event:**
 
 ```
-user 803960 streams an 'add_to_cart' on item 440937 (category 1593)
-  user_pop          : 0 -> 1
+a user streams a strong signal on a new item (a new category for them)
+  user_pop          : n -> n+1
   user_cat_affinity : 0 -> 1   (the model now knows the in-session intent)
-  session dedup     : item 440937 now suppressed -> True
+  session dedup     : that item now suppressed -> True
 ```
+
+The mechanism works exactly as designed: one streamed event updates the online
+features with no retrain. The question is whether it changes outcomes.
 
 **Quantitative -- frozen vs fresh, hit@20 on the user's *later* items:**
 
-For 1,536 users with >=2 strong events, we stream their earliest event as a
+For 18,883 users with >=2 strong events, we stream their earliest event as a
 "seed" and measure whether their *later* items show up in the top-20. Both arms
 exclude the seed, so the only difference is feature freshness.
 
 ```
-frozen  batch features   : hit@20 = 0.0397 (61/1,536)
-fresh streaming features : hit@20 = 0.0625 (96/1,536)
-absolute lift=+0.0228   relative=+57.4%
-z=2.868   p=0.0041   -> SIGNIFICANT
+frozen  batch features   : hit@20 = 0.2343 (4,425/18,883)
+fresh streaming features : hit@20 = 0.2348 (4,434/18,883)
+absolute lift=+0.0005   relative=+0.2%
+z=0.109   p=0.9130   -> NOT significant
 ```
 
 ### Reading the numbers like an engineer
 
-- **+57% relative lift, p=0.0041 -- a clear, significant win.** Streaming one
-  in-session event more than halved the miss rate on the user's later purchases.
-  And it happened with the model **byte-for-byte identical** between arms. We
-  didn't build a better model; we gave the same model better inputs.
+- **+0.2%, p=0.91 -- no measurable effect.** Streaming one in-session event moved
+  the needle by nine users out of ~18,900. The confidence interval straddles
+  zero; we cannot claim freshness helped here. And the model was byte-for-byte
+  identical between arms, so this is a clean read on the *feature-freshness* lever
+  alone.
 
-- **Contrast this with Phase 5, deliberately.** There, refining the *ranker*
-  (popularity -> LR) was **inconclusive** (p=0.84). Here, refining the *feature
-  freshness* is **highly significant** (p=0.004). Same statistical machinery,
-  opposite verdict. The lesson is a classic one (Rule 8 and "features > models"):
-  on this dataset, **fresh data beats a fancier model.** Time spent on the feature
-  pipeline would pay off more than time spent tuning the ranker.
+- **Why freshness is flat *here* (and when it wouldn't be).** KuaiRand is
+  short-video engagement: dense, exploratory, and not strongly session-intent
+  driven. Knowing a user just long-viewed one video tells you little about their
+  *next* one. Contrast e-commerce, where a user browsing a category is *about* to
+  buy more in it -- there, a 30-second delta layer can be worth a large lift. The
+  value of freshness is a property of the **workload**, not the technology.
 
-- **Why freshness helps so much here:** e-commerce sessions are bursty and
-  intent-driven. A user browsing a category is *about* to buy more in it. The
-  batch store can't see that; the stream can. Capturing 30 seconds of intent is
-  worth more than any offline metric we moved in Phases 1-2.
+- **Same machinery, opposite verdict from Phase 5 -- both honest.** Phase 5 found
+  a *significant negative* (don't ship the LR ranker). Phase 6 finds *no effect*
+  (don't invest in a streaming layer for this workload yet). Neither is a
+  disappointment; both are the monitoring/experimentation discipline telling you
+  where **not** to spend effort.
 
-> **The honest caveat, again:** this is a replay -- we stream logged events and
-> check logged later items. But the mechanism (delta layer, same interface, no
-> retrain) and the statistics are exactly production-shaped, and the effect is far
-> too large to be an artifact.
+> **The honest caveat:** this is a replay -- we stream logged events and check
+> logged later items. The mechanism (delta layer, same interface, no retrain) and
+> the statistics are production-shaped; the *result* just says freshness isn't the
+> lever on this dataset.
 
 ---
 
@@ -140,27 +146,30 @@ z=2.868   p=0.0041   -> SIGNIFICANT
 2. **Interface discipline compounds.** Because the streaming store mimics the
    batch store's read API, the entire Phase 3 serving stack absorbed it for free.
    Good seams pay off repeatedly.
-3. **Fresh data can beat a better model.** The single biggest, most significant
-   lift in this whole project came not from a smarter algorithm but from letting
-   the same model see 30 seconds of fresh behavior (Rule 8).
+3. **Whether fresh data helps is a property of the workload.** The streaming
+   machinery is real and correct, but on short-video engagement it moved nothing
+   (+0.2%, ns). Build the lever; measure before you assume it pays (Rule 8).
 
 ---
 
 ## The journey, end to end
 
-That completes **Phases 0-6** -- the full lifecycle the design doc lays out:
+That completes **Part I (Phases 0-7)** -- the full classic-recommender lifecycle:
 
-| Phase | What it added | Standout result |
+| Phase | What it added | Standout result (KuaiRand) |
 |---|---|---|
-| 0 | Heuristic baseline | Recall@20 = 0.031; temporal eval discipline |
-| 1 | Two-tower retrieval | Lost to the heuristic -- a real, instructive finding |
-| 2 | Feature store + LR ranker | Skew measured at 2-2.8x; interpretable weights |
-| 3 | Serving architecture | p50 6ms, graceful fallback, Rule 29 logging |
-| 4 | Monitoring & drift | PSI 0.47 caught the same shift as the Phase 2 skew |
-| 5 | A/B testing | Ranker win came back *inconclusive* -- don't ship noise |
-| 6 | Freshness | +57% hit@20, significant, **no retrain** |
+| 0 | Heuristic baseline | Recall@20 = 0.067; temporal eval discipline |
+| 1 | Two-tower retrieval | **beat** the heuristic +84%, coverage +120% |
+| 2 | Feature store + LR ranker | skew measured 2-2.4x; weak cross feature *hurt* (-12% NDCG) |
+| 3 | Serving architecture | p50 4.1ms, graceful fallback, Rule 29 logging |
+| 4 | Monitoring & drift | drift gate FAILs by design |
+| 5 | A/B testing | LR ranker significantly worse (-10%, p=0.0006) -- don't ship |
+| 6 | Freshness | +0.2%, not significant -- freshness isn't the lever here |
+| 7 | Co-visitation | +61% on session next-item |
 
-The through-line: **the model is the easy part.** The value -- and the danger --
-lives in evaluation discipline, point-in-time correctness, serving robustness,
-monitoring, honest experimentation, and data freshness. See
-[`lessons-learned.md`](lessons-learned.md) for the distilled reflexes.
+Then **Part II (Phase 8)** delivers the punchline: the offline metrics under all
+of this were **+100% biased**, and off-policy evaluation on the random log fixes
+it. The through-line: **the model is the easy part.** The value -- and the
+danger -- lives in evaluation discipline, point-in-time correctness, serving
+robustness, monitoring, honest experimentation, and *causally sound* metrics. See
+[`results.md`](results.md) and [`lessons-learned.md`](lessons-learned.md).

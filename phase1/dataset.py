@@ -5,7 +5,7 @@ Builds BPR (Bayesian Personalized Ranking) training triples from events.
 
 Key design decisions (all flow from the design doc):
 
-1. Positives = cart + purchase ONLY.
+1. Positives = STRONG signals ONLY (target actions).
    Views are 96.7% of events and carry weak signal — using them as positives
    would teach the model to replicate a popularity ranker, not beat one.
 
@@ -65,10 +65,10 @@ class ItemVocab:
 
 def build_vocab(train_events: pl.DataFrame) -> ItemVocab:
     """
-    Build item vocabulary from STRONG events (cart + purchase) only.
+    Build item vocabulary from STRONG events (target actions) only.
 
     Why strong events only?
-    If we include all events, items with many views but zero purchases enter the
+    If we include all events, items with many weak signals but zero strong ones enter the
     vocab with no real training signal from positives. Their embeddings stay
     near-random after training. Searching 78K near-random embeddings is worse
     than a popularity ranker — this is exactly what happened in our first run.
@@ -94,7 +94,7 @@ def build_vocab(train_events: pl.DataFrame) -> ItemVocab:
 
     print(
         f"[dataset] Vocab: {len(items):,} items from strong events "
-        f"(min {MIN_STRONG_INTERACTIONS} cart/purchase events each; "
+        f"(min {MIN_STRONG_INTERACTIONS} strong events each; "
         f"total unique items in training: {train_events['item_id'].n_unique():,})"
     )
     return ItemVocab(item_id_to_idx=item_id_to_idx, idx_to_item_id=items)
@@ -137,8 +137,8 @@ class BPRDataset(Dataset):
     """
     BPR training triples: (user_history, positive_item, negative_item)
 
-    For each user with at least one cart/purchase event:
-      - positive = each cart/purchase item (in vocab)
+    For each user with at least one strong event:
+      - positive = each strong-signal item (in vocab)
       - user_context = ALL other in-vocab items in user's history (excluding the positive)
       - negative = uniformly sampled item NOT in user's full history
 

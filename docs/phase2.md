@@ -9,7 +9,7 @@ Phase 1 gave us candidates. Phase 2 does two things:
 1. Builds a **point-in-time feature store** -- the most under-taught concept in
    production ML -- and *quantifies* the skew bug it prevents.
 2. Trains an **interpretable logistic-regression ranker** (Stage 2) that reorders
-   candidates and finally beats popularity.
+   candidates -- and hands us an honest negative result about feature quality.
 
 ---
 
@@ -63,17 +63,17 @@ time correct (`get_historical_features`) vs the naive "join today's totals"
 
 ```
 TRAINING-SERVING SKEW (point-in-time vs leaked)
-  item_pop           point-in-time mean= 3.18 | leaked mean= 6.92 | inflation x2.2
-  user_pop           point-in-time mean=24.99 | leaked mean=50.91 | inflation x2.0
-  user_cat_affinity  point-in-time mean= 0.63 | leaked mean= 1.76 | inflation x2.8
+  item_pop           point-in-time mean=180.68 | leaked mean=363.23 | inflation x2.0
+  user_pop           point-in-time mean= 19.88 | leaked mean= 40.73 | inflation x2.0
+  user_cat_affinity  point-in-time mean=  2.24 | leaked mean=  5.35 | inflation x2.4
 ```
 
-**The leaked features are inflated 2-2.8x.** Read that again: if you'd built this
+**The leaked features are inflated 2-2.4x.** Read that again: if you'd built this
 the naive way, every training row would have carried roughly *double* the true
 historical signal. Your model would learn relationships that don't hold at
-serving time. This number -- x2.2 -- is training-serving skew made concrete.
+serving time. This number -- x2.0 -- is training-serving skew made concrete.
 
-> **Why the cross feature (x2.8) leaks worst:** category affinity accumulates
+> **Why the cross feature (x2.4) leaks worst:** category affinity accumulates
 > over a user's whole life. Crediting a month-old event with a user's *lifetime*
 > affinity is the most anachronistic of all. Rich, personal features are exactly
 > the ones point-in-time correctness protects most.
@@ -105,19 +105,21 @@ XGBoost makes a mistake, you debug a forest of 500 trees. At this stage the
 accuracy gap is small and the debuggability gap is enormous. Earn complexity
 later.
 
-And interpretability paid off immediately -- here are our learned weights:
+And interpretability paid off immediately -- here are our learned weights on
+KuaiRand:
 
 ```
-weights = {item_pop: 3.08, user_cat_affinity: 2.93, user_pop: -0.35}
+weights = {item_pop: 0.83, user_cat_affinity: 0.82, user_pop: -0.61}
 ```
 
 You can *read the model's mind*:
 
-- **`item_pop` (+3.08):** popular items convert. No surprise.
-- **`user_cat_affinity` (+2.93):** a user's history in the item's category is
-  *almost as predictive as global popularity*. This is the personalization signal.
-- **`user_pop` (-0.35):** slightly **negative** -- very active users are pickier
-  per-item (they've already bought a lot). You'd never notice this in a black box.
+- **`item_pop` (+0.83):** popular items get engagement. No surprise.
+- **`user_cat_affinity` (+0.82):** in-sample, a user's history in the item's
+  category looks *almost as predictive as global popularity*. Hold that thought --
+  the test set disagrees.
+- **`user_pop` (-0.61):** **negative** -- very active users are pickier per-item.
+  You'd never notice this in a black box.
 
 ### The cross feature: where personalization actually comes from
 
@@ -137,39 +139,50 @@ each user, based on what they actually care about.
 
 ---
 
-## Results
+## Results -- an honest negative
 
 Same candidate pool for both; the only difference is whether the LR ranker
 reorders it:
 
 | Metric | Popularity order | LR ranker | Lift |
 |---|---|---|---|
-| Recall@20 | 0.0260 | **0.0270** | +3.8% |
-| NDCG@20 | 0.0181 | **0.0185** | +2% |
+| Recall@20 | **0.068** | 0.061 | -10% |
+| NDCG@20 | **0.043** | 0.037 | **-12%** |
 
-Modest, but **real and positive** -- and it comes purely from personalized
-reordering. With a better candidate pool (Phase 1's two-tower instead of raw
-popularity) and more cross features (price-vs-user-average, brand affinity,
-recency), this is where most of a production system's lift is won.
+**The ranker loses to raw popularity order.** And notice the tension with the
+weights above: the model assigned `user_cat_affinity` a large *positive* in-sample
+weight -- it genuinely believed the feature helped -- yet out-of-sample it drags
+the ranking down. That is the whole lesson:
 
-> **Honest framing:** +2% NDCG isn't glamorous, but it's *trustworthy* -- it's
-> measured temporally, on leakage-free features, with an interpretable model
-> whose weights make sense. In production, a trustworthy +2% you can explain
-> beats a suspicious +20% you can't.
+- On KuaiRand the category `tag` is **coarse** and engagement is
+  **popularity-dominated**, so `user_cat_affinity` correlates with popularity
+  while adding noise. A feature can look predictive in-sample and still fail to
+  generalize (Rules 17 & 20: prefer features that carry *real*, direct signal).
+- A one-cross-feature LR simply can't out-rank a strong popularity prior when the
+  cross feature is weak. The fix is *better features* (recency, sequence, richer
+  side data) or a *better candidate pool* (Phase 1's two-tower), not a fancier
+  model on the same thin signal.
+
+> **Honest framing:** a negative result you can *explain* is worth more than a
+> positive one you can't. The point-in-time store and the skew audit are the
+> durable deliverables here; they matter regardless of whether this particular
+> feature helped.
 
 ---
 
 ## What Phase 2 taught us
 
-1. **Training-serving skew is real and measurable** -- 2-2.8x on this dataset.
+1. **Training-serving skew is real and measurable** -- 2-2.4x on this dataset.
    A feature store isn't bureaucracy; it's the thing standing between you and a
    silently-wrong model.
 2. **Point-in-time correctness has a name and a tool** (`join_asof`). You now
    know how to build it, not just cite it.
-3. **Interpretable models earn their keep** -- the negative `user_pop` weight is
-   an insight you only get from a model you can read.
-4. **Personalization requires cross features.** Single-axis features can't
-   personalize, no matter how fancy your model.
+3. **Interpretable models earn their keep** -- both the negative `user_pop`
+   weight *and* the diagnosis of why a positively-weighted feature still failed
+   are insights you only get from a model you can read.
+4. **A positive in-sample weight is not a win.** `user_cat_affinity` looked
+   predictive and still hurt on the test set. Judge features by out-of-sample
+   lift, not by whether the model likes them (Rules 17 & 20).
 
 Next up ([roadmap](../README.md#roadmap)): serving (Ray Serve), monitoring
 (drift detection), and A/B testing -- turning this offline pipeline into a live
