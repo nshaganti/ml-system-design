@@ -1,9 +1,9 @@
 """
 Phase 7 -- Entry Point
 =======================
-Evaluates the community-standard task on RetailRocket: SESSION-BASED next-item
-prediction, leave-one-out, Recall@20 / MRR@20 / NDCG@20 -- the protocol public
-notebooks and the session-rec literature actually use.
+Evaluates the community-standard task: SESSION-BASED next-item prediction,
+leave-one-out, Recall@20 / MRR@20 / NDCG@20 -- the protocol public notebooks and
+the session-rec literature actually use.
 
 Protocol:
   1. Temporal 80/20 split (same as every other phase).
@@ -14,9 +14,10 @@ Protocol:
 
 Why this matters: our Phases 0-2 measured the next positive action (engagement)
 over the full catalog (~0.07 Recall@20). That is a *different, harder task* than
-next-item-in-session, so the numbers here are NOT comparable to those -- they are
-comparable to the literature (which reports session Recall@20 roughly in the
-0.4-0.6 band). This phase exists to benchmark us on the community's own turf.
+next-item-in-session, so the numbers here are NOT comparable to those. On
+KuaiRand co-visitation beats popularity by ~61% -- a real but modest win, because
+the small catalog makes popularity a strong session baseline (on a sparse
+e-commerce log the same method often wins by far more).
 
 Usage:
     cd phase7
@@ -106,9 +107,9 @@ def main():
     print("  Context for these numbers:")
     print(f"  - Our full-catalog next-positive-action Recall@20 (Phase 0-2) was ~0.07.")
     print(f"  - This session next-ITEM Recall@20 is ~{cov['recall']:.2f} -- a DIFFERENT,")
-    print(f"    easier task, and now in the literature's 0.4-0.6 ballpark.")
-    print(f"  - Co-visitation crushes popularity because it uses the session signal")
-    print(f"    (Phase 6 already hinted at this: freshness/session = the real lever).")
+    print(f"    easier task, so it is not comparable to the full-catalog numbers.")
+    print(f"  - Co-visitation beats popularity by using the session co-occurrence")
+    print(f"    signal; the win is modest here because the catalog is small.")
 
     print("\nNext steps:")
     print("  - Blend co-vis candidates INTO the Phase 3 service candidate union.")

@@ -16,7 +16,7 @@ skew: the bug where training joins today's feature values onto month-old events,
 making offline eval look great and production quietly degrade (Rules 29-37).
 
 Features computed (all point-in-time correct):
-  - item_pop          : # strong (cart/purchase) events on the item, before T
+  - item_pop          : # strong (target-action) events on the item, before T
   - user_pop          : # strong events by the user, before T
   - user_cat_affinity : # of the user's prior strong events in the SAME category
                         as the candidate item (a user x item CROSS feature, Rule 20)
@@ -88,9 +88,9 @@ class PointInTimeFeatureStore:
         The store only knows the past -- exactly like a real system at the moment
         it generates training data.
 
-        item_properties (optional): the Retail Rocket item-property log. When
-        provided, enables the user_cat_affinity cross feature by mapping each item
-        to its category. When None, user_cat_affinity is present but always 0.
+        item_properties (optional): the item-property table (item_id -> category).
+        When provided, enables the user_cat_affinity cross feature by mapping each
+        item to its category. When None, user_cat_affinity is present but always 0.
         """
         strong = events.filter(
             pl.col("event_type").is_in(STRONG_EVENT_TYPES)

@@ -2,6 +2,16 @@
 
 A practical end-to-end guide for ML engineers transitioning from prototype notebooks to production systems. Uses a real-time product recommendation system as the vehicle -- the same class of problem operated at scale by large e-commerce platforms.
 
+> **About the scenario vs. the reference implementation.** The architecture below
+> is framed around a hypothetical large-scale e-commerce system (10M DAU, 50M
+> items) because it's a familiar way to reason about scale and latency. The
+> **reference implementation in this repo runs on real data -- the KuaiRand-Pure
+> short-video dataset** -- and each phase's "In practice (this repo)" box reports
+> the *actual measured* result. The repo is in two parts: **Part I (Phases 0-7)**
+> builds the classic recommender; **Part II (Phase 8)** confronts the fact that
+> Part I's offline metrics are causally biased and fixes it with off-policy
+> evaluation. See [`docs/datasets.md`](docs/datasets.md).
+
 ---
 
 ## The Scenario
@@ -86,12 +96,14 @@ This is the single most important investment of Phase 0. Log every impression, c
 - **Apache Kafka** -- stream events from the application
 - **Apache Iceberg on S3/GCS** -- durable event store for training data
 
-> **In practice (this repo).** We implemented Phase 0 on the Retail Rocket
-> dataset in [`phase0/`](phase0/). The heuristic scores **Recall@20 = 0.0310**
-> with an honest temporal split -- that is the baseline every later model must
-> beat. We also learned that catalog coverage (1.4%) matters as much as recall:
-> a popularity ranker is a "popularity trap" that never surfaces the long tail.
-> Full walkthrough: [`docs/phase0.md`](docs/phase0.md).
+> **In practice (this repo).** We implemented Phase 0 on the KuaiRand-Pure
+> dataset in [`phase0/`](phase0/). The heuristic scores **Recall@20 = 0.0670**
+> with an honest temporal split -- the baseline every later model must beat. A
+> twist worth noting: cold-start recall (0.118, pure popularity) actually *beats*
+> warm-user recall (0.066, popularity + category filter), an early hint that the
+> category signal is weak here (Phase 2 confirms it). Catalog coverage (7.1%)
+> matters as much as recall: a popularity ranker is a "popularity trap" that never
+> surfaces the long tail. Full walkthrough: [`docs/phase0.md`](docs/phase0.md).
 
 ---
 
@@ -192,13 +204,15 @@ When the ranker makes a mistake, logistic regression tells you *why* -- you can 
 - **MLflow** -- tracks every run: hyperparameters, metrics, model artifacts, lineage
 
 > **In practice (this repo).** Our two-tower candidate generator lives in
-> [`phase1/`](phase1/) with MLflow tracking. The humbling result: it **lost** to
-> the Phase 0 heuristic (Recall@20 0.0228 vs 0.0310), even after popularity-
-> weighted negatives (+27% warm recall) and fixing a train/serve dot-product
-> mismatch. That is a normal, legitimate Phase 1 outcome -- a strong heuristic is
-> a hard baseline, and beating it needs side features, not just embeddings. The
-> lasting deliverable is the *pipeline*, not the model. Full story (with the
-> debugging steps): [`docs/phase1.md`](docs/phase1.md).
+> [`phase1/`](phase1/) with MLflow tracking. On KuaiRand it **beats** the Phase 0
+> heuristic: **Recall@20 0.1231 vs 0.0670 (+84%)** and catalog coverage +120% --
+> because the feedback is dense (a third of events are strong) and the catalog is
+> small (~7.5k). That's the *opposite* of a sparse e-commerce log, where the same
+> ID-only two-tower would likely lose to a strong heuristic; model value is a
+> function of the data regime. Popularity-weighted negatives and train/serve
+> dot-product consistency are doing quiet work under the hood. The lasting
+> deliverable is still the *pipeline*, not the model. Full story:
+> [`docs/phase1.md`](docs/phase1.md).
 
 ---
 
@@ -281,11 +295,14 @@ features = store.get_online_features(
 > point-in-time feature store over polars `join_asof` (same API shape as the
 > Feast snippet above: `get_historical_features` / `get_online_features`). The
 > payoff is a *measured* skew number: building features the naive "join today's
-> totals" way inflates them **2.0-2.8x** vs point-in-time correct. On top of it,
-> an interpretable logistic-regression ranker with a user x item **cross feature**
-> (category affinity) finally beats popularity (+2% NDCG) -- and its weights are
-> readable (e.g. a *negative* weight on user activity). Full walkthrough:
-> [`docs/phase2.md`](docs/phase2.md).
+> totals" way inflates them **2.0-2.4x** vs point-in-time correct. The ranker,
+> though, is an honest **negative result**: the user x item category cross feature
+> gets a large positive *in-sample* weight yet **loses** to popularity out of
+> sample (-12% NDCG), because KuaiRand's category tag is coarse and engagement is
+> popularity-driven. The interpretable weights still pay off (a *negative* -0.61
+> weight on user activity; a diagnosis of why the feature failed). Lesson: judge
+> features by out-of-sample lift, not by whether the model likes them. Full
+> walkthrough: [`docs/phase2.md`](docs/phase2.md).
 
 ---
 
@@ -319,12 +336,14 @@ User Request (HTTP)
 
 > **In practice (this repo).** [`phase3/`](phase3/) assembles Phases 1-2 into a
 > live `RecommendationService` with all six stages timed. Over 2,000 real-user
-> requests it holds **p50 6.2ms / p99 14.4ms, 100% within the 100ms budget**
+> requests it holds **p50 4.4ms / p99 ~9ms, 100% within the 100ms budget**
 > (flattering, since it's in-process -- but every stage is measured, so real
-> infra costs are easy to locate). Fault injection proves graceful fallback
-> (Rule 10): a broken ranker still returns 20 items with `fallback_used=True`,
-> no 500. Business rules filter 357k out-of-stock items. And the Rule 29 feature
-> log captured 40k rows of exactly-what-was-served -- the skew-free seed for v2.
+> infra costs are easy to locate; `feature_fetch` dominates at ~9.7ms). Fault
+> injection proves graceful fallback (Rule 10): a broken ranker still returns 20
+> items with `fallback_used=True`, no 500. The business-rule step is a
+> domain-neutral **policy layer** (0 items filtered on KuaiRand, which has no
+> eligibility signal -- but the seam is there). And the Rule 29 feature log
+> captured 40k rows of exactly-what-was-served -- the skew-free seed for v2.
 > Full walkthrough: [`docs/phase3.md`](docs/phase3.md).
 
 ---
@@ -385,11 +404,12 @@ Kafka events
 > **In practice (this repo).** [`phase4/`](phase4/) implements the three health
 > layers as check functions with a single pass/fail **pipeline gate**. The numeric
 > core (PSI, KL, ECE) is pure and unit-tested. On real data the gate goes **FAIL**
-> -- the feature-drift check fires at **PSI 0.47** (major shift). That is not a
-> bug: it's the *same* popularity drift that produced the 2-2.8x training-serving
-> skew in Phase 2, now surfaced as a monitorable, deploy-blocking signal. Model
-> health stays green (0% fallback, 18.9 categories of diversity, calibration ECE
-> 0.07). Full walkthrough: [`docs/phase4.md`](docs/phase4.md).
+> -- but notably *not* on drift: feature drift is **stable (PSI 0.024)**, so that
+> alarm correctly stays quiet. Instead the **row-count** check fires (serving
+> window has ~half the reference rows) and **calibration** fails (ECE 0.115). The
+> lesson: run every layer -- a monitor with a favorite failure mode is half-blind.
+> Fallback stays at 0% and diversity is healthy (4.0 categories in the top-20 --
+> KuaiRand tags are coarse). Full walkthrough: [`docs/phase4.md`](docs/phase4.md).
 
 ---
 
@@ -434,11 +454,11 @@ def assign_experiment_variant(user_id: str, experiment_id: str) -> str:
 > **In practice (this repo).** [`phase5/`](phase5/) implements sticky, salted
 > `assign_variant` (SHA-256), a pure-Python two-proportion z-test (via `math.erf`,
 > no scipy), and an up-front `required_sample_size` power calculation. The replay
-> A/B test (popularity vs the LR ranker, hit@20) is a deliberate teaching result:
-> the +2% NDCG offline win from Phase 2 comes back **inconclusive** (p=0.84, CI
-> straddles zero) -- and the power analysis explains why, calling for ~14.7k users
-> per arm when we had ~1.2k (12x underpowered). The lesson: decide sample size
-> first, and never ship on a noisy number. Full walkthrough:
+> A/B test (popularity vs the LR ranker, hit@20) is decisive: the LR ranker is
+> **significantly worse -- -10%, p=0.0006**, 95% CI entirely below zero, on ~7,500
+> users per arm (well powered). The online test *confirms* Phase 2's offline
+> signal and gives the confidence to **not ship** the regression. The lesson: a
+> significant negative is the tool working. Full walkthrough:
 > [`docs/phase5.md`](docs/phase5.md).
 
 ---
@@ -472,10 +492,51 @@ Retrain on streaming data as it arrives. Only introduce this complexity if strea
 > `StreamingFeatureStore` that wraps the frozen batch store and layers O(1) delta
 > updates on top, exposing the *same* read interface so the Phase 3 service
 > consumes it unchanged. Streaming a user's earliest in-session event and
-> measuring hit@20 on their later items gives a **significant +57% relative lift**
-> (0.0397 -> 0.0625, p=0.004) with the model **byte-for-byte unchanged**. Tellingly,
-> this dwarfs the (inconclusive) ranker upgrade from Phase 5 -- on this data, fresh
-> data beats a fancier model (Rule 8). Full walkthrough: [`docs/phase6.md`](docs/phase6.md).
+> measuring hit@20 on their later items gives an honest **null result: +0.2%,
+> p=0.91 (not significant)** with the model unchanged. On KuaiRand's short-video
+> engagement, a 30-second delta layer just isn't the lever it would be on a bursty
+> e-commerce cart. The mechanism is real and correct; whether freshness *pays* is
+> a property of the workload -- build the lever, then measure. Full walkthrough:
+> [`docs/phase6.md`](docs/phase6.md).
+
+---
+
+## Phase 7: Session Co-visitation (Community Benchmark)
+
+The community's classic protocol for interaction logs is **session-based
+next-item** prediction, evaluated leave-one-out. Before assuming you need a
+sequence model, measure the simplest strong baseline: **co-visitation** (count
+which items co-occur within a session, recommend the neighbors of the last item).
+
+> **In practice (this repo).** [`phase7/`](phase7/) sessionizes the event stream
+> and builds a pure-Python co-visitation recommender behind the same
+> `.recommend()` interface. On the leave-one-out session task it beats popularity
+> by **+61%** (Recall@20 0.0797 vs 0.0496). A real but *modest* win -- on
+> KuaiRand's small catalog popularity is already a strong session baseline, so
+> there's less headroom than on a sparse e-commerce log. Win size is a property of
+> the data, which is why you benchmark on *your* data. Co-visitation slots into the
+> Phase 3 candidate union for free. Full walkthrough: [`docs/phase7.md`](docs/phase7.md).
+
+---
+
+## Part II -- Phase 8: Off-Policy Evaluation (Rules 23, 30, 36)
+
+Everything in Part I graded models by *replaying the logged data*. But those logs
+were written by the incumbent policy -- it only ever showed items it liked, to
+users it liked. So an offline metric estimated from them is **biased**, not just
+noisy. The fix requires knowing the probability each item was shown (the
+propensity), which is why KuaiRand's **uniform-random exposure log** (`beta=1/N`)
+is the key that unlocks honest evaluation.
+
+> **In practice (this repo).** [`phase8/`](phase8/) implements IPS, SNIPS, the
+> Direct Method, and Doubly Robust estimation, plus effective-sample-size. Grading
+> a target policy on the **biased** log overstates its true value by **+100%**
+> (0.523 vs a ground truth of 0.261 computed from the random log). Reweighting the
+> random log by known propensities recovers the truth: **SNIPS lands at 0.6%
+> error**, doubly robust at 6%. This is the capstone lesson -- even after all of
+> Part I's discipline, the offline number underneath it can be a factor of two
+> wrong. Full walkthroughs: [`docs/phase8.md`](docs/phase8.md) and
+> [`docs/off-policy-evaluation.md`](docs/off-policy-evaluation.md).
 
 ---
 

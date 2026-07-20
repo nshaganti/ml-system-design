@@ -10,7 +10,7 @@ Pipeline:
   3. Build a labelled training set (strong events = positive, sampled = negative)
   4. Train the LR ranker on POINT-IN-TIME-correct features
   5. Quantify the skew: how different are point-in-time vs "join today's totals"?
-  6. Evaluate the ranker on test purchasers vs a popularity baseline
+  6. Evaluate the ranker on test engagers vs a popularity baseline
      (candidate pool = top popular items; the ranker reorders them)
 
 Usage:
@@ -82,7 +82,7 @@ def evaluate_ranker(
     test_events: pl.DataFrame,
     store: PointInTimeFeatureStore,
 ) -> dict:
-    """Reorder a popularity candidate pool with the LR ranker; score vs purchases."""
+    """Reorder a popularity candidate pool with the LR ranker; score vs target actions."""
     # Candidate pool = most popular items as of the cutoff (Phase 1 would supply
     # these via two-tower ANN; popularity is a fine stand-in for the ranker demo).
     pool = (

@@ -1,7 +1,7 @@
 # ML System Design: Methodology, Decisions & Real-World Pitfalls
 
 > **Audience:** ML engineers moving from prototype notebooks to production systems.
-> **Vehicle:** A real-time product recommendation engine built on the [Retail Rocket dataset](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset).
+> **Vehicle:** A recommender built on the real [KuaiRand-Pure dataset](https://kuairand.com) (Kuaishou short-video interaction logs).
 > **What this document is:** A defense of every decision made -- not just *what* we built, but *why*, and what breaks when you get it wrong.
 
 ---
@@ -101,7 +101,7 @@ Recall@20 = |purchased_items &#8745; top_20_recommendations| / |purchased_items|
 
 **Why Recall@20 is not enough alone:**
 
-> &#9888;&#65039; **Real-world problem:** Recall@20 can be gamed. A model that recommends the 20 globally most popular items every time will achieve decent recall on sparse datasets (popular items get bought). This is exactly what happened in our Phase 0/Phase 1 comparison -- the popularity baseline "won" on recall because popular items overlap heavily with what users actually buy.
+> &#9888;&#65039; **Real-world problem:** Recall@20 can be gamed. A model that recommends the 20 globally most popular items every time achieves decent recall on many datasets (popular items get engaged with). On a *sparse* e-commerce log this popularity baseline is famously hard to beat -- but on KuaiRand, where feedback is dense, our Phase 1 two-tower *beats* the popularity heuristic decisively (see Section 5). The point stands: always report coverage and business metrics alongside recall, because recall alone can flatter a bestseller list.
 
 The metrics you also need in production:
 - **Coverage** -- what % of catalog appears in any recommendation? (Low = popularity trap)
@@ -148,7 +148,7 @@ def temporal_split(events, train_fraction=0.8):
 
 **Rule 33: Test on data *after* your training cutoff.** Temporal holdout better simulates production conditions than random splits. Always.
 
-On the Retail Rocket dataset (138 days), we split at 80% of the timeline -- training on the first 110 days, evaluating on the last 28.
+On the KuaiRand-Pure timeline we split at 80% -- training on the earlier portion, evaluating on the later. The model never sees any information from the test period during training.
 
 ---
 
@@ -172,27 +172,27 @@ Without Phase 0, you have no answer to "did Phase 1 actually improve anything?" 
 
 ---
 
-### Why Those Specific Weights? (purchase=3, cart=2, view=1)
+### Why Those Specific Weights? (strong=3, medium=2, weak=1)
 
 ```python
-EVENT_WEIGHTS = {
-    "purchase":    3.0,
-    "add_to_cart": 2.0,
-    "impression":  1.0,
+SIGNAL_WEIGHTS = {
+    "strong": 3.0,   # target actions: long-view / like / follow / forward / comment
+    "medium": 2.0,   # engagement: click
+    "weak":   1.0,   # exposure: impression without engagement
 }
 ```
 
-These are not arbitrary. They encode a purchase intent signal hierarchy:
+These are not arbitrary. They encode an intent-signal hierarchy:
 
-| Event | Intent signal | Reasoning |
+| Signal | Intent signal | Reasoning |
 |---|---|---|
-| Purchase | Highest -- irreversible action | User spent money |
-| Add to cart | High -- considered action | User mentally committed |
-| View/Impression | Low -- passive signal | Could be accidental, search-driven, or curiosity |
+| Strong | Highest -- active endorsement | User long-viewed, liked, followed, forwarded, or commented |
+| Medium | Medium -- deliberate action | User clicked in |
+| Weak | Low -- passive signal | Item was merely exposed; could be scroll-past |
 
 The ratio (3:2:1) is a reasonable starting point. **Rule 7: Convert heuristics into features.** These weights encode domain knowledge that the ML model will later learn automatically from data. By making them explicit and tunable now, you create a feature that can be validated, adjusted, and eventually replaced by a learned signal.
 
-**What not to do:** Equal weights (1:1:1) treats a purchase the same as a scroll-past. This produces a popularity score dominated by view counts -- which is exactly the noise the ML model will have to fight.
+**What not to do:** Equal weights (1:1:1) treats a strong action the same as a scroll-past. This produces a popularity score dominated by raw exposure counts -- which is exactly the noise the ML model will have to fight.
 
 ---
 
@@ -261,9 +261,9 @@ self.item_emb = nn.Embedding(num_items, embedding_dim)
 
 **Why this breaks in production:**
 
-**Problem 1 -- Cold-start.** On the Retail Rocket dataset, 30% of sessions are from users with no prior history. The user embedding table has no entry for them. What does `self.user_emb(new_user_id)` return? Random noise (or a crash, if the ID is out of range). You silently serve garbage recommendations to 30% of your traffic.
+**Problem 1 -- Cold-start.** A large fraction of real sessions are from users with no prior history. The user embedding table has no entry for them. What does `self.user_emb(new_user_id)` return? Random noise (or a crash, if the ID is out of range). You silently serve garbage recommendations to those users.
 
-**Problem 2 -- Training-serving skew (Rule 32).** The user embedding is learned during training. At serving time, you look up the same embedding. But if a user's preferences have changed since training (they just bought running shoes; now they want race nutrition), the stale embedding doesn't reflect this. The user vector is only updated on the next model retrain.
+**Problem 2 -- Training-serving skew (Rule 32).** The user embedding is learned during training. At serving time, you look up the same embedding. But if a user's preferences have changed since training (they just binged cooking videos; now they want travel), the stale embedding doesn't reflect this. The user vector is only updated on the next model retrain.
 
 **Problem 3 -- Memory.** 10M daily active users x 128-dim float32 = 5GB embedding table. This grows with user count, not item count.
 
@@ -291,53 +291,36 @@ def get_user_vector(self, history: torch.Tensor) -> torch.Tensor:
 
 ---
 
-### Why Cart + Purchase as Positives ONLY?
+### Why Strong Signals as Positives ONLY?
 
-**The data breakdown on Retail Rocket:**
+**The signal breakdown on KuaiRand-Pure (standard log, 1,436,609 events):**
 
-| Event type | Count | % of total |
+| Signal | Count | % of total |
 |---|---|---|
-| Impressions (views) | 2,664,312 | 96.7% |
-| Add to cart | 69,332 | 2.5% |
-| Purchases | 22,457 | 0.8% |
+| Weak (exposure) | 770,085 | 53.6% |
+| Medium (click) | 180,053 | 12.5% |
+| Strong (target actions) | 486,471 | 33.9% |
 
 **What happens if you use all events as positives?**
 
-With views as positives, 96.7% of your training signal says "the model is doing great -- every item shown gets a 'positive' label." The remaining 3.3% (cart + purchase) are drowned out.
+With weak exposures as positives, the majority of your training signal says "every item shown is a positive" -- and the model just relearns popularity. The strong-intent signal (long-view, like, follow, forward, comment) gets diluted. Even though KuaiRand is *dense* compared to e-commerce (a third of events are strong), the principle holds: train on the signal that reflects intent, not the signal that reflects exposure.
 
-> &#9888;&#65039; **Real-world failure we hit:** In our first training run, we defined positives as all events. Here is what happened:
-
-```
-First run results:
-  Vocab size: 78,115 items (all items with >=5 interactions)
-  Training triples: 53,714
-  Training examples per item: 0.7 (less than 1!)
-  
-  Result:
-    Warm user Recall@20: 0.0103  <-- WORSE than Phase 0's 0.0466
-    Catalog coverage:    6.7%    <-- barely better than heuristic
-```
-
-The model learned nothing useful. Near-random embeddings for 78K items, searched with ANN, returned near-random results. **Popularity ranker beat it easily.**
-
-**The fix: positives = strong events only**
+**The design: positives = strong events only**
 
 ```python
-STRONG_EVENT_TYPES = {"add_to_cart", "purchase"}
+STRONG_SIGNAL = "strong"   # long_view / is_like / is_follow / is_forward / is_comment
 
-# Vocab: only items that appear in strong events
-strong_events = train_events.filter(
-    pl.col("event_type").is_in(list(STRONG_EVENT_TYPES))
-)
-# Result: 8,219 items (from 212,915 unique) with >= 3 strong interactions each
+# Vocab: only items that appear in strong events, with >= 3 strong interactions each
+strong_events = train_events.filter(pl.col("signal") == STRONG_SIGNAL)
+# Result on KuaiRand: 6,266 items (from 7,540 unique training items)
 ```
 
-**With the fix:**
-- Each vocab item has meaningful training signal (at least 3 strong-event examples)
-- Loss converges from 0.69 to 0.06
-- Coverage jumps from 6.3% to **47.1%** -- the model surfaces diverse items
+**Why this works so well here:**
+- Each vocab item has *abundant* training signal: 535,785 BPR triples across 6,266 items is **~85 examples per item** -- far above the 3-5 minimum. This is the opposite of a sparse e-commerce log, and it's precisely why the two-tower learns good embeddings and beats the heuristic (Section 5).
+- Loss converges smoothly (0.40 -> 0.29 over 20 epochs).
+- Coverage lands at 15.7% -- the model surfaces diverse items rather than tunneling on the head.
 
-**Rule 17: Prefer directly observed features over learned ones.** Strong behavioral signals (cart, purchase) are direct observations of intent. Views are indirect and noisy. Always prioritize direct signal, especially when data is sparse.
+**Rule 17: Prefer directly observed features over learned ones.** Strong behavioral signals (long-view, like, follow) are direct observations of intent. Exposures are indirect and noisy. Always prioritize direct signal -- and when you have a lot of it, the payoff is a model that genuinely learns.
 
 ---
 
@@ -368,26 +351,28 @@ This says: "the positive item should be ranked higher than the negative item." I
 - BPR says: "rank the item they bought above a random item"
 - This is always a valid training signal regardless of whether the random item is a true negative
 
-**The intuition:** If a user bought running shoes, we want `score(user, running_shoes) > score(user, random_item)`. We don't need to claim the random item is bad -- just that the purchased item is better.
+**The intuition:** If a user long-viewed a cooking video, we want `score(user, cooking_video) > score(user, random_item)`. We don't need to claim the random item is bad -- just that the engaged item is better.
 
 ---
 
-### Why L2-Normalize Embeddings in the Index?
+### Why Raw Dot Product (Not L2-Normalized Cosine) in the Index?
 
 ```python
-@staticmethod
-def _normalize(x: np.ndarray) -> np.ndarray:
-    norms = np.linalg.norm(x, axis=-1, keepdims=True)
-    return np.where(norms > 0, x / norms, x)
+# index.py defaults to raw dot product -- matching how the model TRAINED
+scores = item_matrix @ user_vec        # NOT cosine similarity
 ```
 
-**Unnormalized dot product = cosine similarity x magnitude product.**
+This is a train/serve *consistency* decision (Rule 32), and it's subtle enough to trip up almost everyone.
 
-If item embeddings have different magnitudes (popular items tend to get larger gradient updates and larger norms), then the dot product search is biased toward high-magnitude items regardless of directional similarity. This reintroduces popularity bias through the back door.
+**The model trains with a raw dot product.** During BPR training, an item embedding's *magnitude* naturally grows for popular items -- and that magnitude is genuine signal the model learned to use. If the serving index then L2-normalizes everything to cosine similarity, it **throws that magnitude away**, so the model optimizes one objective and you serve a different one. Silent training-serving skew.
 
-After L2 normalization, dot product = pure cosine similarity -- only the direction (preference alignment) matters, not the magnitude. This gives the embedding model a fair shot at surfacing long-tail items that are directionally similar to user preferences.
+```
+Unnormalized dot product = cosine similarity x magnitude product.
+```
 
-**The tradeoff:** Sometimes magnitude IS signal (popular items are good by definition). You can tune this by partial normalization or mixing normalized and unnormalized scores. For Phase 1, full normalization is the right starting point because our goal is explicitly to improve over the popularity baseline.
+A tempting argument says "normalize, so only direction (preference alignment) matters and long-tail items get a fair shot." That can be a valid *modeling* choice -- but only if you also train with normalized embeddings. Mixing normalized serving with unnormalized training is the bug. We keep both sides on the raw dot product.
+
+**The tradeoff:** if you *want* magnitude out of the scoring (e.g. to reduce popularity bias), normalize in *both* training and serving, or blend a normalized and unnormalized score deliberately. The rule is not "normalize" or "don't" -- it's "do the identical thing at train and serve."
 
 ---
 
@@ -425,7 +410,7 @@ def get_item_snapshot(item_properties, as_of_timestamp_ms):
     )
 ```
 
-The Retail Rocket item_properties table has timestamped property updates -- every category, price, and availability change is a new row. By filtering to `<= event_timestamp`, we see the item as it was at that moment, not as it is today.
+A well-formed item-property log has timestamped updates -- every category, price, or availability change is a new row. By filtering to `<= event_timestamp`, we see the item as it was at that moment, not as it is today. (KuaiRand ships static video features; the point-in-time discipline matters most for the *rolling* count features built in Phase 2's feature store.)
 
 **Production solution (Phase 2):** A feature store (Feast) enforces this automatically. The `get_historical_features()` call does the point-in-time join for you. The `get_online_features()` call returns current values at serving time. Same feature definition, two modes.
 
@@ -455,38 +440,32 @@ def temporal_split(events, train_fraction=0.8):
     return train, test, cutoff_ms
 ```
 
-We split at the 80th percentile of the timeline. Training on the first 110 days of Retail Rocket, evaluating on the last 28. **The model never sees any information from the test period during training.**
+We split at the 80th percentile of the timeline, evaluating on the most recent slice. **The model never sees any information from the test period during training.**
 
 **Rule 33: Test on data after your training cutoff.** No exceptions. Always check that your split is temporal before trusting any offline metric.
 
 ---
 
-### Pitfall 3: Coverage vs Recall Tradeoff
+### Pitfall 3: Coverage vs Recall -- Two Axes, Not One
 
-**What happened in our run:**
+**What happened in our KuaiRand run:**
 
 | Metric | Phase 0 (Heuristic) | Phase 1 (Two-Tower) |
 |---|---|---|
-| Recall@20 | 3.08% | 2.21% |
-| Catalog coverage | 6.3% | 47.1% |
+| Recall@20 | 6.70% | **12.31%** |
+| Catalog coverage | 7.14% | **15.70%** |
 
-**Naive interpretation:** Phase 1 is worse. Throw it away.
+Here Phase 1 wins on **both** axes -- recall +84% and coverage +120% -- because KuaiRand's dense feedback and small catalog give the embeddings enough signal to learn (Section 5). So this dataset does *not* show the classic tradeoff. But the reason to always track *both* metrics is exactly that on a **different** dataset you often see them diverge:
 
-**Correct interpretation:** Phase 1 has a fundamentally different distribution of recommendations.
+> &#9888;&#65039; **On a sparse e-commerce log, a popularity ranker often "wins" Recall@K while a two-tower spreads recommendations across far more of the catalog (higher coverage) yet scores lower recall.** Then Recall@20 alone would tell you to throw the model away -- and you'd be discarding the discovery engine. Coverage is what stops a recommender from collapsing into a bestseller list.
 
-Phase 0 (popularity ranker) concentrates 100% of its recommendations on the globally top ~15K items. It achieves decent recall because popular items are also what people buy. But it gives zero exposure to the other 220K items in the catalog.
+**Why measuring coverage matters regardless of the sign:**
 
-Phase 1 (two-tower) spreads recommendations across 47% of the catalog (110K items). It's learning personalized preferences, but on a sparse dataset (36K training triples) without enough signal to outperform raw popularity on the "what do people buy" metric.
+Phase 0 (popularity) concentrates recommendations on the head of the catalog. Phase 1 (two-tower) spreads across more than twice as much of it. On KuaiRand that breadth comes *with* better recall; on sparser data it may cost some recall -- and only by tracking both do you make that call with eyes open.
 
-**Why this is actually expected:**
+**What this means for two-stage evaluation:**
 
-> &#9888;&#65039; **Popularity baselines are notoriously hard to beat on Recall@K metrics on sparse datasets.** This is a well-known result in recommendation systems research. The reason: popular items are popular because many people buy them. A recall metric asks "did we put the right item in the top 20?" -- and for most users on most e-commerce datasets, at least one of the top-20 globally popular items IS something they'll buy.
-
-**What this means for Phase 2:**
-
-The two-stage system (candidate gen + ranker) is designed to be evaluated as a whole pipeline. The candidate generator's Recall@500 is the right metric for Phase 1 -- did the right item make it into the 500 candidates? The ranker's Recall@20 is the right metric for Phase 2 -- did the ranker pick the right 20 from those 500 candidates?
-
-Evaluating Phase 1 on Recall@20 (a Phase 2 metric) set an unfair bar. We did it here intentionally so you can see this exact failure mode.
+The candidate generator's natural metric is Recall@500 -- "did the right item make it into the 500 candidates?" The ranker's metric is Recall@20 -- "did the ranker pick the right 20 from those 500?" Judging Stage 1 purely on Recall@20 sets an unfair bar; we report it here only because on KuaiRand the two-tower clears it anyway.
 
 ---
 
@@ -618,34 +597,26 @@ More vocab items -> more items the model can recommend -> better coverage
 Fewer training examples per item -> worse embedding quality -> worse recall
 ```
 
-**Our actual failure (first run):**
+**How it plays out on KuaiRand:**
 
 ```
-Vocab: 78,115 items (all items with >=5 any-event interactions)
-Training triples: 53,714 (from cart/purchase events)
-Training examples per item: 53,714 / 78,115 = 0.69
+Vocab from ALL signals (incl. weak exposures): 7,540 items, mostly thin signal
+Vocab from STRONG signals only:                6,266 items
+Training triples:                              535,785
+Training examples per vocab item:              535,785 / 6,266 = ~85
 
-The model gets less than 1 gradient update per item on average.
-Embeddings are essentially random initialization.
-ANN search on random vectors returns random items.
-Warm user Recall@20: 0.0103 (WORSE than Phase 0's 0.0466)
+Each item gets ~85 gradient updates -> genuinely learned embeddings.
+ANN search on well-trained vectors returns relevant items.
+Warm-user Recall@20: 0.1231 (BEATS Phase 0's 0.0656)
 ```
 
-**The fix:**
+This is the healthy side of the tension: dense feedback means even a modest vocab has abundant signal per item. On a **sparse** log the same "use all events" choice can collapse to <1 example per item, producing near-random embeddings that lose to popularity -- the classic Phase 1 failure. The lever is the same either way: keep the vocab no larger than your training signal can support.
 
 ```python
-# Vocab from STRONG events only
-strong_events = train_events.filter(pl.col("event_type").is_in({"add_to_cart", "purchase"}))
-# Items with >= 3 cart/purchase interactions get an embedding
-# Result: 8,219 items (vs 78K)
-
-# Training examples per vocab item: 36,367 / 8,219 = 4.4
-# Each item gets ~4 training examples -> meaningful gradient signal
+# Vocab from STRONG signals only, with a minimum-interaction floor
+strong_events = train_events.filter(pl.col("signal") == "strong")
+# Items with >= 3 strong interactions get an embedding -> 6,266 items
 ```
-
-After the fix:
-- Loss converges properly: 0.69 -> 0.06
-- Coverage: 47.1% (model learns diverse representations within the smaller vocab)
 
 **The general principle: your vocab should never be larger than your training signal can support.** A rough heuristic: each item should have at least 3-5 positive training examples. If your training data is sparse, shrink the vocab, not the model.
 
@@ -659,50 +630,45 @@ After the fix:
 
 | Metric | Phase 0 (Heuristic) | Phase 1 (Two-Tower) |
 |---|---|---|
-| Recall@20 | 3.08% | 2.21% |
-| Warm user Recall@20 | 4.66% | 1.66% |
-| Cold-start Recall@20 | 2.44% | 2.44% (Phase 0 fallback) |
-| Catalog coverage | 6.3% | 47.1% |
-| Training time | N/A | ~12 seconds (MPS) |
-| Index size | N/A | 2.0 MB (8K items x 64-dim) |
+| Recall@20 | 6.70% | **12.31%** |
+| Warm user Recall@20 | 6.56% | **12.31%** |
+| Cold-start Recall@20 | 11.75% | 12.13% (heuristic fallback) |
+| Catalog coverage | 7.14% | **15.70%** |
+| Training time | N/A | ~2 min (20 epochs, CPU) |
+| Index size | N/A | ~1.6 MB (6.3K items x 64-dim) |
 
-### Why Phase 1 Didn't Beat Phase 0 on Recall -- and Why That's OK
+### Why Phase 1 BEAT Phase 0 -- and What That Tells You
 
-**The dataset reality:**
-- 96.7% of events are views (very weak signal)
-- Purchase rate: 0.8% (sparse)
-- 138 days of data -- not a lot of temporal diversity
-- 36K training triples for 8K vocab items = 4.4 examples per item (marginal)
+On a *sparse* e-commerce log, the textbook result is that a two-tower loses to a
+strong popularity+category heuristic. On KuaiRand it's the opposite: the two-tower
+wins by +84% on recall and +120% on coverage. The difference is entirely the data
+regime:
 
-On sparse datasets with dominant popularity effects, a well-tuned popularity ranker is very hard to beat on Recall@K. This is a known empirical result in the field. It does NOT mean the ML model failed -- it means:
+- **Dense feedback.** A third of events are strong signals, so users have long,
+  informative histories -- mean-pooling many item embeddings yields a rich user
+  vector, not a guess from 2-3 items.
+- **Enough signal per item.** ~85 training examples per vocab item (vs the ~4 you
+  might get on a sparse log) means the embeddings actually converge.
+- **Small catalog.** ~7.5K items is tractable for ID embeddings to cover.
 
-1. **The right metric for candidate generation is Recall@500, not Recall@20.** The two-tower's job is to make sure the right item is in the 500 candidates. The ranker's job is to select the best 20.
+> The honest counterpoint: **this win is a property of the dataset, not proof the
+> architecture is universally better.** Run the same ID-only, mean-pooled
+> two-tower on short histories over millions of items with mostly weak feedback,
+> and it can easily lose to the heuristic. "We used a two-tower" is never the
+> result; "we beat the baseline by X%, measured temporally, and here's the data
+> reason why" is.
 
-2. **Coverage improved massively (6.3% -> 47.1%)**, which is a real business win. Recommending from 6% of catalog means new items never get visibility. Recommending from 47% means the system can surface novel items -- which drives discovery, not just conversion.
+### What This Means for the Ranker (Phase 2)
 
-3. **Phase 2 (logistic regression ranker) will address recall.** By scoring 500 candidates with user-item features (price affinity, category match, recency), the ranker will outperform the popularity baseline on both recall and precision. That is the correct evaluation frame.
-
-### What Beating the Baseline Actually Requires
-
-The two-stage system needs to be evaluated end-to-end. The correct comparison is:
-
-```
-Phase 0: Popularity ranker -> top 20 -> Recall@20 = 3.08%
-
-vs.
-
-Phase 1 + Phase 2: Two-tower -> 500 candidates
-                  -> LR Ranker -> top 20
-                  -> Recall@20 = ?
-```
-
-The ranker uses features the popularity model can't access:
-- User-item price affinity (is this item in the user's typical price range?)
-- Category affinity match (does this item match the user's top categories?)
-- Item recency (is this a new item the user hasn't seen?)
-- Co-purchase patterns (items frequently bought together)
-
-With these features, the Phase 2 ranker selects the right 20 from 500 meaningful candidates -- outperforming the Phase 0 model that selects 20 from globally popular items.
+The two-stage frame still holds: Stage 1 (this two-tower) maximizes recall into a
+candidate set; Stage 2 (the ranker) maximizes precision within it. But Phase 2
+delivered an *honest negative*: a single coarse category cross feature actually
+**hurt** the ranker (-12% NDCG vs popularity order), because on KuaiRand the tag
+is weak and engagement is popularity-driven. The lesson compounds -- a strong
+candidate stage plus a weak ranking feature is worse than the candidate stage
+alone. Better features (recency, sequence, richer side data) or a better candidate
+union (Phase 7's co-visitation) are the way forward, not a fancier ranker on thin
+signal. See [`docs/phase2.md`](docs/phase2.md).
 
 ---
 
@@ -712,14 +678,14 @@ With these features, the Phase 2 ranker selects the right 20 from 500 meaningful
 |---|---|---|
 | Ship heuristic first | Rule 1 | Launched popularity ranker before building any ML |
 | Design event schema first | Rule 2 | Instrumented impression/click/cart/purchase before training |
-| Encode domain knowledge | Rule 7 | Event weights (3/2/1) encode purchase intent hierarchy |
+| Encode domain knowledge | Rule 7 | Signal weights (3/2/1) encode the intent hierarchy |
 | Know freshness requirements | Rule 8 | 15-min freshness -> streaming feature updates, not daily retrain |
 | Watch for silent failures | Rule 10 | RowCount/NullRate assertions on every pipeline run |
 | Start with logistic regression | Rule 14 | Ranker starts as LR before moving to XGBoost/DNN |
 | Plan to launch and iterate | Rule 16 | MLflow tracking every run; A/B framework from day one |
-| Prefer direct features | Rule 17 | Cart/purchase as positives; not views (noisy indirect signal) |
+| Prefer direct features | Rule 17 | Strong signals as positives; not weak exposures (noisy indirect signal) |
 | Feature count scales with data | Rule 21 | Vocab size constrained to items with sufficient training signal |
-| Observable, attributable metrics | Rule 13 | Add-to-cart rate (direct signal) over click rate (indirect) |
+| Observable, attributable metrics | Rule 13 | Target-action rate (direct signal) over exposure rate (indirect) |
 | Recall vs. business metric | Rule 25 | Offline Recall@20 is ticket to A/B, not final answer |
 | Temporal holdout | Rule 33 | Split at 80th percentile of timeline, not random |
 | Shared train/serve code | Rule 32 | Mean-pool at training = mean-pool at serving (same function) |
@@ -733,9 +699,16 @@ With these features, the Phase 2 ranker selects the right 20 from 500 meaningful
 
 1. **The model is almost never the bottleneck.** Infrastructure, data quality, and evaluation methodology are. Fix those first.
 
-2. **A regression is information.** When Phase 1 didn't beat Phase 0, we didn't throw away the model -- we debugged it. The vocab size vs training signal failure was a clear, fixable problem. Regressions that surface early (during development) cost hours; regressions that surface in production cost revenue.
+2. **A regression is information.** When Phase 2's category cross feature made the
+   ranker *worse* (-12% NDCG), we didn't hide it -- we diagnosed why (a coarse,
+   weak signal) and let Phase 5's A/B test confirm it (-10%, p=0.0006) and kill
+   the change. Negative results that surface early (in development or a replay
+   A/B) cost hours; the same regression shipped to production costs revenue.
 
-3. **Popular items win on Recall@K. That's a reason to measure coverage too.** A recommendation system that serves the same 20 items to everyone is not a recommendation system -- it's a bestseller list. Coverage ensures the system can discover, not just confirm.
+3. **A strong baseline is a strong baseline. Measure coverage too.** Popularity is
+   a genuinely hard baseline on many datasets. A recommender that serves the same
+   20 items to everyone is not a recommender -- it's a bestseller list. Track
+   coverage alongside recall so you know which one you've built.
 
 4. **Cold-start is a first-class concern, not an edge case.** 30% of sessions being cold-start means your architecture must handle it from day one. A user ID embedding table is a trap.
 
@@ -745,6 +718,6 @@ With these features, the Phase 2 ranker selects the right 20 from 500 meaningful
 
 ---
 
-*Dataset: [Retail Rocket E-Commerce Dataset](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset) | 2.7M events, 138 days, 1.4M users, 235K items*
+*Dataset: [KuaiRand-Pure](https://kuairand.com) | ~1.44M standard-log interactions, ~27K users, ~7.5K videos, plus a ~1.19M-row uniform-random exposure log that powers Part II (off-policy evaluation).*
 
 *Rules reference: [Google's Rules of Machine Learning](https://developers.google.com/machine-learning/guides/rules-of-ml)*

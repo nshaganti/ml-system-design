@@ -4,7 +4,7 @@ Phase 4 -- Monitoring & Drift Detection (Rule 10)
 > "Watch for silent failures."
 
 Production ML systems rarely crash. They DEGRADE: a pipeline stalls and serves
-week-old features; an item goes out of stock and keeps getting recommended; a
+week-old features; an item becomes ineligible and keeps getting recommended; a
 category goes viral and the model's prior is wrong. None of these throw an
 exception. This module gives you the assertions that turn silent degradation into
 a loud, countable signal.
@@ -12,7 +12,7 @@ a loud, countable signal.
 Three layers (design doc, Phase 4):
   1. Data health   -- row counts, null rates, distribution drift
   2. Model health  -- prediction stability, calibration, fallback rate, diversity
-  3. Business      -- CTR / add-to-cart / revenue (consumed from the event stream)
+  3. Business      -- engagement / target-action rates (consumed from the event stream)
 
 The numeric core (PSI, KL divergence) lives here as pure functions so it's
 trivially testable. A `Monitor` runs a suite of checks and returns a single

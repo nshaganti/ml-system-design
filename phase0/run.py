@@ -2,7 +2,7 @@
 Phase 0 — Entry Point
 ======================
 Run this to execute the full Phase 0 pipeline:
-  1. Load & validate Retail Rocket dataset
+  1. Load & validate the KuaiRand-Pure dataset
   2. Build heuristic ranker on training data
   3. Evaluate with temporal split
 
@@ -15,11 +15,8 @@ Prerequisites:
         polars duckdb scikit-learn
 
 Dataset:
-    Download from https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset
-    Place in ../data/:
-        events.csv
-        item_properties_part1.csv
-        item_properties_part2.csv
+    Download KuaiRand-Pure from https://kuairand.com and place it at
+    ../data/KuaiRand-Pure/ (see data/README.md for the exact layout).
 """
 
 import sys

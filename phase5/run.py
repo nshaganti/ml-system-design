@@ -6,10 +6,10 @@ the same statistics you'd use on live traffic.
 
   control   = popularity ordering        (service with ranker=None -> candidate order)
   treatment = lr_ranker_v1               (service with the Phase 2 LR ranker)
-  metric    = hit@20 (did any of the user's actual test-window purchases land in
-              the top-20?) -- a per-user binary "conversion" proxy
+  metric    = hit@20 (did any of the user's actual test-window target actions land
+              in the top-20?) -- a per-user binary "conversion" proxy
 
-Important honesty: this is a REPLAY on logged purchases, not a live test -- we
+Important honesty: this is a REPLAY on logged target actions, not a live test -- we
 can't observe how users would react to recommendations they never saw. But the
 machinery on display -- deterministic sticky assignment, a two-proportion z-test,
 confidence intervals, and up-front sample-size planning -- is exactly what you run

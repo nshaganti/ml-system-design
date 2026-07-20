@@ -1,17 +1,18 @@
 """
 Phase 7 -- Session-Based Co-Visitation (the community-standard approach)
 =========================================================================
-Why this phase exists: RetailRocket's Kaggle/academic sweet spot is SESSION-BASED
-next-item prediction, and the consistently strongest-yet-simplest method on this
-kind of data is **co-visitation** (a.k.a. item-kNN over session co-occurrence):
+Why this phase exists: the recsys community's classic sweet spot for interaction
+logs is SESSION-BASED next-item prediction, and the consistently
+strongest-yet-simplest method on this kind of data is **co-visitation** (a.k.a.
+item-kNN over session co-occurrence):
 
     "people who interacted with X in a session also interacted with Y"
 
 Phases 0-6 modelled a user's *whole* history (mean-pooled) and predicted next
-*purchase* over the full catalog. That is a different, harder task than the one the
-literature benchmarks -- and our Phase 1 regression + 39% candidate ceiling +
-Phase 6's huge freshness win were all pointing at the same thing: **the session is
-the signal, and we weren't using it.** This module fixes that.
+*target action* over the full catalog. That is a different, harder task than the
+one the literature benchmarks. On KuaiRand the session signal is real but modest
+(co-visitation beats popularity by ~61%), because the small catalog makes
+popularity a strong session baseline. This module measures it honestly.
 
 Performance notes (this is pure Python over millions of events, so it matters):
   - fit() uses a SLIDING WINDOW, not all-pairs -- co-visitation quality comes from
