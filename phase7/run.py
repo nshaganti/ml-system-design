@@ -12,11 +12,11 @@ Protocol:
      feed the earlier items as context, predict top-20, score the hit.
   4. Compare co-visitation vs a popularity baseline under the SAME protocol.
 
-Why this matters: our Phases 0-2 measured next-*purchase* over the full catalog
-(~0.03 Recall@20). That is a *different, harder task* than next-item-in-session,
-so the numbers here are NOT comparable to those -- they are comparable to the
-literature (which reports session Recall@20 roughly in the 0.4-0.6 band). This
-phase exists to benchmark us on the community's own turf.
+Why this matters: our Phases 0-2 measured the next positive action (engagement)
+over the full catalog (~0.07 Recall@20). That is a *different, harder task* than
+next-item-in-session, so the numbers here are NOT comparable to those -- they are
+comparable to the literature (which reports session Recall@20 roughly in the
+0.4-0.6 band). This phase exists to benchmark us on the community's own turf.
 
 Usage:
     cd phase7
@@ -104,7 +104,7 @@ def main():
         print(f"  {label:<12} {pop[key]:>12.4f} {cov[key]:>14.4f} {lift:>+7.0f}%")
     print("=" * 60)
     print("  Context for these numbers:")
-    print(f"  - Our full-catalog next-PURCHASE Recall@20 (Phase 0-2) was ~0.03.")
+    print(f"  - Our full-catalog next-positive-action Recall@20 (Phase 0-2) was ~0.07.")
     print(f"  - This session next-ITEM Recall@20 is ~{cov['recall']:.2f} -- a DIFFERENT,")
     print(f"    easier task, and now in the literature's 0.4-0.6 ballpark.")
     print(f"  - Co-visitation crushes popularity because it uses the session signal")

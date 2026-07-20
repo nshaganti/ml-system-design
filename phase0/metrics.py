@@ -2,7 +2,7 @@
 Phase 0 -- Ranking Metrics
 ============================
 Pure, dependency-free ranking metrics over a ranked list of recommended item
-IDs and a set of relevant (e.g. purchased) item IDs.
+IDs and a set of relevant (e.g. engaged / positive-signal) item IDs.
 
 Kept separate from evaluate.py so they are trivially unit-testable and reusable
 by every phase (Phase 2's ranker cares about NDCG/MAP, not just recall).

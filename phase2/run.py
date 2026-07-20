@@ -91,19 +91,19 @@ def evaluate_ranker(
     )
     pool_df = pl.DataFrame({"item_id": pool})
 
-    test_purchasers = (
+    test_positives = (
         test_events.filter(pl.col("event_type") == TARGET_SIGNAL)
         .group_by("user_id")
-        .agg(pl.col("item_id").alias("purchased_items"))
+        .agg(pl.col("item_id").alias("positive_items"))
     )
-    if len(test_purchasers) > MAX_EVAL_USERS:
-        test_purchasers = test_purchasers.sample(MAX_EVAL_USERS, seed=SEED)
+    if len(test_positives) > MAX_EVAL_USERS:
+        test_positives = test_positives.sample(MAX_EVAL_USERS, seed=SEED)
 
     lr_ndcg, lr_recall, pop_ndcg, pop_recall = [], [], [], []
 
-    for row in test_purchasers.iter_rows(named=True):
+    for row in test_positives.iter_rows(named=True):
         user_id = row["user_id"]
-        purchased = set(row["purchased_items"])
+        positive = set(row["positive_items"])
 
         # Online features for this user across the whole pool. The cross feature
         # (user_cat_affinity) varies per candidate, so the LR can now PERSONALIZE.
@@ -113,15 +113,15 @@ def evaluate_ranker(
         lr_top = ranker.rank(cand, item_col="item_id", n=K)
         pop_top = pool[:K]  # popularity baseline = pool order
 
-        lr_ndcg.append(ndcg_at_k(lr_top, purchased, K))
-        lr_recall.append(recall_at_k(lr_top, purchased, K))
-        pop_ndcg.append(ndcg_at_k(pop_top, purchased, K))
-        pop_recall.append(recall_at_k(pop_top, purchased, K))
+        lr_ndcg.append(ndcg_at_k(lr_top, positive, K))
+        lr_recall.append(recall_at_k(lr_top, positive, K))
+        pop_ndcg.append(ndcg_at_k(pop_top, positive, K))
+        pop_recall.append(recall_at_k(pop_top, positive, K))
 
     return {
         "lr_ndcg": mean(lr_ndcg), "lr_recall": mean(lr_recall),
         "pop_ndcg": mean(pop_ndcg), "pop_recall": mean(pop_recall),
-        "users": len(test_purchasers),
+        "users": len(test_positives),
     }
 
 
@@ -159,9 +159,17 @@ def main():
     print(f"  users evaluated : {res['users']:,}")
     print("=" * 55)
     lift = (res['lr_ndcg'] / res['pop_ndcg'] - 1) * 100 if res['pop_ndcg'] > 0 else 0.0
-    print(f"  The user_cat_affinity CROSS feature lets the ranker PERSONALIZE:")
-    print(f"  it reorders the same popular pool per user by category affinity,")
-    print(f"  giving {lift:+.0f}% NDCG vs raw popularity order (Rule 20).")
+    if lift >= 0:
+        print(f"  The user_cat_affinity CROSS feature lets the ranker PERSONALIZE:")
+        print(f"  it reorders the same popular pool per user by category affinity,")
+        print(f"  giving {lift:+.0f}% NDCG vs raw popularity order (Rule 20).")
+    else:
+        print(f"  Honest result: the user_cat_affinity cross feature gives {lift:+.0f}% NDCG")
+        print(f"  vs raw popularity -- i.e. it HURTS here. On this dataset category is a")
+        print(f"  weak personalization signal (coarse tags, popularity-driven engagement),")
+        print(f"  so a one-feature LR can't beat the popularity prior. That's the lesson,")
+        print(f"  not a bug: a feature only helps if it carries signal (Rules 17 & 20).")
+        print(f"  The point-in-time store + skew audit still matter regardless of lift.")
     print("\nNext steps:")
     print("  - Feed the LR ranker the two-tower's 500 candidates (Phase 1) instead")
     print("    of the popularity pool for the full two-stage architecture.")

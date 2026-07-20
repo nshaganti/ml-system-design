@@ -4,13 +4,13 @@ Phase 0 — Evaluation
 Evaluates the heuristic ranker using a temporal split (Rule 33).
 
 WHY temporal split matters:
-  A random 80/20 split lets your model "see the future" — test events that
+  A random 80/20 split lets your model "see the future" -- test events that
   happened before some training events. In production the model never sees
   future data, so random splits produce optimistic metrics that don't reflect
   real performance. Always split by time.
 
 Metrics:
-  - Recall@K: of all items a user purchased in the test period,
+  - Recall@K: of all items a user engaged with in the test period,
                what fraction appear in the top-K recommendations?
   - Coverage:  what % of catalog items ever appear in any recommendation?
                Low coverage = the model is a popularity trap.
@@ -58,8 +58,8 @@ def recall_at_k(
     catalog_size: int | None = None,
 ) -> dict:
     """
-    Recall@K: for each user who made a purchase in the test period,
-    did our top-K recommendations include that item?
+    Recall@K: for each user with a positive signal (target action) in the test
+    period, did our top-K recommendations include that item?
 
     max_users: cap evaluation to this many users (speed).
                Results are statistically stable at 5K users.
@@ -75,21 +75,21 @@ def recall_at_k(
     Returns a dict with recall@k, coverage, and cold/warm breakdown.
     """
     # Only evaluate on users with a positive signal in the test period
-    test_purchasers = (
+    test_positives = (
         test_events
         .filter(pl.col("event_type").is_in(list(POSITIVE_SIGNALS)))
         .group_by("user_id")
-        .agg(pl.col("item_id").alias("purchased_items"))
+        .agg(pl.col("item_id").alias("positive_items"))
     )
 
-    if len(test_purchasers) == 0:
-        raise ValueError("No purchase events in test set. Check your data and split.")
+    if len(test_positives) == 0:
+        raise ValueError("No positive-signal events in test set. Check your data and split.")
 
     # Cap for speed
-    if len(test_purchasers) > max_users:
-        test_purchasers = test_purchasers.sample(max_users, seed=42)
+    if len(test_positives) > max_users:
+        test_positives = test_positives.sample(max_users, seed=42)
 
-    print(f"\n[evaluate] Scoring {len(test_purchasers):,} users with test purchases...")
+    print(f"\n[evaluate] Scoring {len(test_positives):,} users with test positives...")
 
     hits        = 0
     total       = 0
@@ -104,9 +104,9 @@ def recall_at_k(
     ap_scores:   list[float] = []
     prec_scores: list[float] = []
 
-    for row in test_purchasers.iter_rows(named=True):
-        user_id         = row["user_id"]
-        purchased_items = set(row["purchased_items"])
+    for row in test_positives.iter_rows(named=True):
+        user_id        = row["user_id"]
+        positive_items = set(row["positive_items"])
 
         # User history = their events in TRAINING data only (no future leakage)
         user_train_events = train_events.filter(pl.col("user_id") == user_id)
@@ -119,23 +119,23 @@ def recall_at_k(
         )
         all_recommended.update(recommendations)
 
-        # Count how many purchased items appear in top-K recommendations
-        n_hits = len(purchased_items & set(recommendations))
+        # Count how many positive items appear in top-K recommendations
+        n_hits = len(positive_items & set(recommendations))
 
         hits       += n_hits
-        total      += len(purchased_items)
+        total      += len(positive_items)
 
         # Rank-aware metrics (order matters, unlike raw recall)
-        ndcg_scores.append(ndcg_at_k(recommendations, purchased_items, k))
-        ap_scores.append(average_precision_at_k(recommendations, purchased_items, k))
-        prec_scores.append(precision_at_k(recommendations, purchased_items, k))
+        ndcg_scores.append(ndcg_at_k(recommendations, positive_items, k))
+        ap_scores.append(average_precision_at_k(recommendations, positive_items, k))
+        prec_scores.append(precision_at_k(recommendations, positive_items, k))
 
         if is_cold_start:
             cold_hits  += n_hits
-            cold_total += len(purchased_items)
+            cold_total += len(positive_items)
         else:
             warm_hits  += n_hits
-            warm_total += len(purchased_items)
+            warm_total += len(positive_items)
 
     recall         = hits / total if total > 0 else 0.0
     cold_recall    = cold_hits / cold_total if cold_total > 0 else 0.0
@@ -148,7 +148,7 @@ def recall_at_k(
     results = {
         "recall_at_k":       recall,
         "k":                 k,
-        "total_purchases":   total,
+        "total_positives":   total,
         "total_hits":        hits,
         "cold_start_recall": cold_recall,
         "warm_user_recall":  warm_recall,
@@ -156,7 +156,7 @@ def recall_at_k(
         "ndcg_at_k":         mean(ndcg_scores),
         "map_at_k":          mean(ap_scores),
         "precision_at_k":    mean(prec_scores),
-        "users_evaluated":   len(test_purchasers),
+        "users_evaluated":   len(test_positives),
     }
 
     # Label the printout with the ranker under test so Phase 1's output isn't
@@ -178,10 +178,10 @@ def _print_results(r: dict, label: str = "Ranker") -> None:
     print(f"  Cold-start users     : {r['cold_start_recall']:.4f}")
     print(f"  Catalog coverage     : {r['catalog_coverage']:.4f}  ({r['catalog_coverage']*100:.1f}%)")
     print(f"  Users evaluated      : {r['users_evaluated']:,}")
-    print(f"  Purchases evaluated  : {r['total_purchases']:,}")
+    print(f"  Positives evaluated  : {r['total_positives']:,}")
     print()
     print("  What this means:")
-    print(f"    For every 100 items users bought, our heuristic")
+    print(f"    For every 100 items users engaged with, our ranker")
     print(f"    put {r['recall_at_k']*100:.1f} of them in the top-{r['k']} recommendations.")
     print()
     print("  What to expect in Phase 1 (first ML model):")

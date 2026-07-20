@@ -7,7 +7,7 @@ pipeline-gate status (PASS/FAIL). This is the code that would run on a schedule
 
   Layer 1 (data health) : row-count volume, null rate, feature drift (PSI)
   Layer 2 (model health): fallback rate, recommendation diversity, calibration
-  Layer 3 (business)    : engagement / conversion rate from the event stream
+  Layer 3 (business)    : engagement / target-action rate from the event stream
 
 We deliberately look for DRIFT between the training window and the serving
 (test) window -- because popularity genuinely shifts over time, this is where the
@@ -142,8 +142,8 @@ def main():
     n_test = test_events.height
     eng = test_events.filter(pl.col("event_type") == MEDIUM).height
     conv = test_events.filter(pl.col("event_type") == STRONG).height
-    print(f"  engagement rate : {eng / n_test:.4f}  ({eng:,} / {n_test:,} events)")
-    print(f"  conversion rate : {conv / n_test:.4f}  ({conv:,} / {n_test:,} events)")
+    print(f"  engagement rate (MEDIUM) : {eng / n_test:.4f}  ({eng:,} / {n_test:,} events)")
+    print(f"  target-action rate (STRONG): {conv / n_test:.4f}  ({conv:,} / {n_test:,} events)")
     print("  (In production these stream from Kafka into ClickHouse/Grafana in real time.)")
 
     # ---- Overall gate -----------------------------------------------------
