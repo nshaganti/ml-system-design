@@ -6,17 +6,16 @@ Loads a dataset and maps it to our canonical event schema:
     item_properties: [timestamp_ms, item_id, property, value]
 
 The whole pipeline is dataset-agnostic: every phase calls load_events() /
-load_item_properties() and never knows which dataset is underneath. Pick the
-dataset with the DATASET environment variable:
+load_item_properties() and never knows which dataset is underneath. Today there
+is one dataset -- KuaiRand-Pure (real short-video logs) -- selected by default.
+The DATASET env var exists so new datasets can be dropped in later without
+touching any phase code:
 
-    DATASET=synthetic   (default)  -> generated in-memory, zero download
-    DATASET=retailrocket           -> data/events.csv + item_properties_*.csv
-    DATASET=hm                     -> data/transactions_train.csv + articles.csv
+    DATASET=kuairand   (default)  -> data/KuaiRand-Pure/data/*.csv
 
     # examples
-    cd phase0 && python run.py                     # synthetic (default)
-    DATASET=retailrocket python run.py             # a real e-commerce example
-    SYNTH_USERS=5000 python run.py                 # bigger synthetic dataset
+    cd phase0 && python run.py                     # kuairand (default)
+    KUAIRAND_MAX_ROWS=200000 python run.py         # cap rows for small machines
 
 Every adapter normalizes its native events into the canonical WEAK/MEDIUM/STRONG
 signal taxonomy (see phase0/signals.py). Adding a new dataset = drop a module in
@@ -30,26 +29,33 @@ from pathlib import Path
 
 import polars as pl
 
-from data_sources import retailrocket, hm, synthetic
+from data_sources import kuairand
 
-# Data directory. Override with the DATA_DIR env var (handy for pointing at a
-# real dataset's CSVs). The default 'synthetic' source ignores it entirely.
+# Data directory. Override with the DATA_DIR env var.
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(Path(__file__).parent.parent / "data")))
 
 _SOURCES = {
-    "synthetic":    synthetic,     # default: domain-neutral, zero-download
-    "retailrocket": retailrocket,  # optional real-data example (e-commerce)
-    "hm":           hm,            # optional real-data example (e-commerce)
+    "kuairand": kuairand,   # KuaiRand-Pure: real short-video logs (biased + random)
 }
 
 
 def _active_source():
-    name = os.environ.get("DATASET", "synthetic").lower()
+    name = os.environ.get("DATASET", "kuairand").lower()
     if name not in _SOURCES:
         raise ValueError(
             f"Unknown DATASET={name!r}. Options: {sorted(_SOURCES)}."
         )
     return name, _SOURCES[name]
+
+
+def load_random_log(data_dir: Path = DATA_DIR) -> pl.DataFrame:
+    """The uniform-random exposure log (Part II / off-policy evaluation)."""
+    _, source = _active_source()
+    if not hasattr(source, "load_random_log"):
+        raise NotImplementedError(
+            f"Dataset {os.environ.get('DATASET', 'kuairand')!r} has no random-policy log."
+        )
+    return source.load_random_log(data_dir)
 
 
 def load_events(data_dir: Path = DATA_DIR) -> pl.DataFrame:

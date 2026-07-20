@@ -1,5 +1,8 @@
-# --- Data (huge; download from Kaggle, never commit) ---
-data/*.csv
+# --- Data (huge; download separately, never commit) ---
+# Ignore everything under data/ (datasets are downloaded, not versioned),
+# but keep a README there so the folder + instructions are tracked.
+data/*
+!data/README.md
 
 # --- Python noise ---
 __pycache__/
