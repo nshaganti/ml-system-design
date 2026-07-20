@@ -40,6 +40,10 @@ from metrics import recall_at_k, ndcg_at_k, mean
 
 from covisitation import CoVisitationRecommender, sessionize, session_item_lists
 
+from results_io import save_results
+
+PHASE_DIR = Path(__file__).parent
+
 MAX_TEST_SESSIONS = 30_000
 K = 20
 
@@ -115,6 +119,7 @@ def main():
     print("  - Blend co-vis candidates INTO the Phase 3 service candidate union.")
     print("  - Add a sequence model (GRU4Rec/SASRec) and compare on THIS protocol.")
     print("  - See docs/benchmarking-vs-literature.md for the full gap analysis.\n")
+    save_results(PHASE_DIR, {"popularity": pop, "covisitation": cov})
     return {"popularity": pop, "covisitation": cov}
 
 

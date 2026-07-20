@@ -1,0 +1,11 @@
+{
+  "control_label": "frozen_batch",
+  "control_rate": 0.23433776412646296,
+  "n_control": 18883,
+  "n_treatment": 18883,
+  "p_value": 0.9033474356350553,
+  "relative_lift": 0.0022598870056497735,
+  "significant": false,
+  "treatment_label": "fresh_streaming",
+  "treatment_rate": 0.23486734099454537
+}

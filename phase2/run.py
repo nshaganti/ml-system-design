@@ -37,6 +37,9 @@ from metrics import ndcg_at_k, average_precision_at_k, recall_at_k, mean
 from feature_store import PointInTimeFeatureStore, FEATURE_COLUMNS
 from lr_ranker import LRRanker
 from training import build_labelled_features
+from results_io import save_results
+
+PHASE_DIR = Path(__file__).parent
 
 MAX_POSITIVES   = 100_000   # cap training rows for speed
 CANDIDATE_POOL  = 500       # popularity candidate pool the ranker reorders
@@ -175,6 +178,7 @@ def main():
     print("    of the popularity pool for the full two-stage architecture.")
     print("  - Add more cross features (price vs user avg, brand affinity, recency).")
     print("  - Upgrade LR -> XGBoost only if it plateaus; move features to Redis.\n")
+    save_results(PHASE_DIR, res)
     return res
 
 

@@ -20,7 +20,9 @@ venv/
 **/mlruns/
 
 # --- Local run outputs ---
-phase0/results.json
+# NOTE: phase*/results.json ARE committed on purpose -- they are the source of
+# truth for the scoreboard (scripts/build_results.py) and the HTML report, and
+# they let CI verify the docs aren't stale without needing the dataset.
 
 # --- macOS / editor junk ---
 .DS_Store

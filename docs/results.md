@@ -6,6 +6,13 @@ most important thing about these numbers is that **most of them are not directly
 comparable to each other** -- and pretending otherwise is exactly the kind of
 self-deception this whole project is about avoiding.
 
+> **How this file stays honest.** Every table between `<!-- AUTOGEN -->` markers is
+> regenerated from each phase's `results.json` by `scripts/build_results.py` -- so
+> the numbers in the tables are exactly what the code last produced, never
+> hand-copied. The surrounding prose is human-written and quotes numbers
+> *approximately* (they wobble a little run-to-run from negative sampling and user
+> subsampling); trust the tables for the precise values.
+
 ---
 
 ## The big caveat: read groups, not one trend line
@@ -25,10 +32,10 @@ So the tables below are **grouped by what is actually comparable.** Cross-group
 comparisons are explicitly flagged as invalid.
 
 > **The honest through-line (KuaiRand):** on dense feedback and a small catalog,
-> the ML retrieval model **does** beat the heuristic (Phase 1, +84%). But a weak
-> single cross-feature **hurts** (Phase 2), the A/B test honestly rules that weak
-> ranker out (Phase 5, significant -9%), and in-session freshness barely moves
-> (Phase 6). Then **Part II (Phase 8) drops the real bomb: the offline metrics
+> the ML retrieval model **does** beat the heuristic (Phase 1, ~+83% recall). But a
+> weak single cross-feature **hurts** (Phase 2), the A/B test honestly rules that
+> weak ranker out (Phase 5, significant ~-6%), and in-session freshness barely
+> moves (Phase 6). Then **Part II (Phase 8) drops the real bomb: the offline metrics
 > everyone trusts were biased by 2x.** Complexity bought robustness and honesty;
 > causality-aware evaluation bought *truth*.
 
@@ -39,18 +46,22 @@ comparisons are explicitly flagged as invalid.
 *Comparable.* Same metric, same full-catalog candidate universe, same test users,
 same temporal split.
 
+<!-- AUTOGEN:groupA -->
 | Metric | Phase 0 (heuristic) | Phase 1 (two-tower) | Change |
 |---|---|---|---|
-| Recall@20 | 0.0670 | **0.1231** | **+84%** |
-| Warm-user recall | 0.0656 | **0.1231** | +88% |
-| Cold-start recall | 0.1175 | **0.1213** | +3% |
-| Catalog coverage | 0.0714 | **0.1570** | +120% |
+| Recall@20 | 0.0682 | **0.1246** | +83% |
+| Warm-user recall | 0.0665 | **0.1252** | +88% |
+| Cold-start recall | **0.1179** | 0.1058 | -10% |
+| Catalog coverage | 0.0744 | **0.1603** | +116% |
+<!-- /AUTOGEN:groupA -->
 
-**Verdict:** the learned two-tower **beats** the heuristic on every axis -- roughly
-1.8x recall and 2.2x coverage. This is the *opposite* of what a sparse e-commerce
-log tends to show: KuaiRand's feedback is dense (a third of events are strong) and
-the catalog is small (~7.5k videos), so ID-embedding retrieval has enough signal to
-learn from. See [`phase1.md`](phase1.md).
+**Verdict:** the learned two-tower **beats** the heuristic on the metrics that
+measure learning -- roughly 1.8x recall and 2.2x coverage. (Cold-start recall is a
+wash: cold users are served by the *same* heuristic fallback in both systems, so
+any gap there is sampling noise, not signal.) This is the *opposite* of what a
+sparse e-commerce log tends to show: KuaiRand's feedback is dense (a third of
+events are strong) and the catalog is small (~7.5k videos), so ID-embedding
+retrieval has enough signal to learn from. See [`phase1.md`](phase1.md).
 
 ---
 
@@ -59,10 +70,12 @@ learn from. See [`phase1.md`](phase1.md).
 *Comparable within the group only.* Both rankers reorder the **same popularity
 pool**; the only difference is the ranker.
 
+<!-- AUTOGEN:groupB -->
 | Metric | Popularity order | LR ranker | Change |
 |---|---|---|---|
-| Recall@20 | **0.0730** | 0.0657 | -10% |
-| NDCG@20 | **0.0439** | 0.0380 | -13% |
+| Recall@20 | **0.0689** | 0.0635 | -8% |
+| NDCG@20 | **0.0446** | 0.0386 | -13% |
+<!-- /AUTOGEN:groupB -->
 
 **Verdict:** the LR ranker with a single `user_cat_affinity` cross feature
 **loses** to raw popularity order. On KuaiRand the category tag is coarse and
@@ -79,10 +92,12 @@ train/serve skew audit still matter regardless of the lift's sign.
 positive actions land in the top-20?" (binary per user). **Not comparable to
 Groups A/B** (different metric and populations).
 
+<!-- AUTOGEN:groupC -->
 | Experiment | Arm A | Arm B | Lift | Significance |
 |---|---|---|---|---|
-| **Phase 5:** popularity vs LR ranker | **0.2276 (popularity)** | 0.2072 (LR) | -9.0% | p=0.0024 -- **significant** |
-| **Phase 6:** frozen vs fresh features | 0.2343 (frozen batch) | 0.2348 (fresh stream) | +0.2% | p=0.913 -- **not significant** |
+| **Phase 5:** popularity vs LR ranker | **0.2278 (popularity)** | 0.2134 (LR) | -6.3% | p=0.0327 -- **significant** |
+| **Phase 6:** frozen vs fresh features | 0.2343 (frozen batch) | 0.2349 (fresh stream) | +0.2% | p=0.903 -- **not significant** |
+<!-- /AUTOGEN:groupC -->
 
 **Verdict:** the A/B test (Phase 5) confirms Group B's finding with proper
 statistics -- the weak LR ranker is *significantly worse*, so **do not ship**.
@@ -101,11 +116,13 @@ layer adds little. Same statistical machinery, honest verdicts in both direction
 *Comparable within the group.* Leave-one-out next-item within a session. **Not
 comparable to Groups A-C** (different, easier task: next *item in session*).
 
+<!-- AUTOGEN:groupD -->
 | Metric | Popularity | Co-visitation | Lift |
 |---|---|---|---|
-| Recall@20 | 0.0496 | **0.0797** | +61% |
-| MRR@20 | 0.0127 | **0.0203** | +60% |
-| NDCG@20 | 0.0206 | **0.0331** | +61% |
+| Recall@20 | 0.0500 | **0.0798** | +60% |
+| MRR@20 | 0.0128 | **0.0204** | +60% |
+| NDCG@20 | 0.0207 | **0.0332** | +60% |
+<!-- /AUTOGEN:groupD -->
 
 **Verdict:** a simple, untuned, pure-Python co-visitation model beats popularity by
 ~60% on the session task -- the session signal is real and cheap to exploit. See
@@ -119,13 +136,15 @@ comparable to Groups A-C** (different, easier task: next *item in session*).
 the honesty of offline evaluation itself.* Ground truth is computable only because
 KuaiRand ships a uniform-random log.
 
+<!-- AUTOGEN:groupE -->
 | Estimator | Value | Error vs truth |
 |---|---|---|
 | **Ground truth** (π × random-log rewards) | 0.261 | -- |
-| Naive / Direct Method (biased log) | 0.523 | **+100%** |
+| Naive / Direct Method (biased log) | 0.523 | **100.2%** |
 | IPS | 0.244 | 6.4% |
 | **SNIPS** | 0.259 | **0.6%** |
 | Doubly Robust | 0.277 | 6.1% |
+<!-- /AUTOGEN:groupE -->
 
 **Verdict:** the naive offline metric -- the one most teams ship on -- overstates
 the target policy's true value by **2x**, purely from confounding. Reweighting the
@@ -140,14 +159,14 @@ number can still be a factor of two wrong.* See [`phase8.md`](phase8.md) and
 
 | Phase | Primary currency | Headline result | Accuracy delta |
 |---|---|---|---|
-| 0 Heuristic | a **baseline** | Recall@20 = 0.067 | (defines zero) |
-| 1 Two-tower | a **pipeline** + real retrieval win | +84% recall, +120% coverage | **up** |
+| 0 Heuristic | a **baseline** | Recall@20 = 0.068 | (defines zero) |
+| 1 Two-tower | a **pipeline** + real retrieval win | +83% recall, +116% coverage | **up** |
 | 2 Feature store + LR | **correctness** (skew audit) + interpretability | weak cross feature hurt (-13% NDCG) | down |
-| 3 Serving | **latency & robustness** (p50 4.1ms, fallback) | no accuracy change | flat |
+| 3 Serving | **latency & robustness** (p50 4.2ms, fallback) | no accuracy change | flat |
 | 4 Monitoring | **trust** (drift gate FAIL, as designed) | no accuracy change | flat |
-| 5 A/B testing | **honesty** (don't ship the worse ranker) | significant -9% | down (correctly) |
+| 5 A/B testing | **honesty** (don't ship the worse ranker) | significant -6% | down (correctly) |
 | 6 Freshness | **fresh data** (streamed, no retrain) | +0.2%, not significant | flat |
-| 7 Co-visitation | **task framing** (session signal) | +61% on session next-item | up (diff task) |
+| 7 Co-visitation | **task framing** (session signal) | +60% on session next-item | up (diff task) |
 | 8 OPE | **causal truth** | naive metric was +100% biased | -- |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and

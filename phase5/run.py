@@ -45,6 +45,9 @@ from candidate_generator import PopularityCandidateGenerator
 from service import RecommendationService, RecommendationRequest
 
 from experiment import assign_variant, two_proportion_ztest, required_sample_size
+from results_io import save_results
+
+PHASE_DIR = Path(__file__).parent
 
 SEED = 42
 EXPERIMENT = "ranker_popularity_vs_lr_v1"
@@ -127,6 +130,18 @@ def main():
     print("    Kafka, and analyze with the SAME z-test on live conversions.")
     print("  - Add guardrail metrics (latency, diversity) that can veto a ship.")
     print("  - Phase 6: near-real-time freshness so v2 trains on fresh data.\n")
+
+    save_results(PHASE_DIR, {
+        "control_label": "popularity",
+        "treatment_label": "lr_ranker",
+        "control_rate": result.control_rate,
+        "treatment_rate": result.treatment_rate,
+        "relative_lift": result.relative_lift,
+        "p_value": result.p_value,
+        "significant": result.significant,
+        "n_control": result.n_control,
+        "n_treatment": result.n_treatment,
+    })
     return result
 
 

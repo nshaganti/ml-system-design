@@ -40,6 +40,9 @@ from training import build_labelled_features
 from candidate_generator import PopularityCandidateGenerator
 from service import RecommendationService, RecommendationRequest
 from signals import TARGET_SIGNAL
+from results_io import save_results
+
+PHASE_DIR = Path(__file__).parent
 
 SEED = 42
 MAX_POSITIVES = 100_000
@@ -123,6 +126,10 @@ def main():
     print(f"  within {service.latency_budget_ms:.0f}ms budget: "
           f"{100*np.mean([t <= service.latency_budget_ms for t in totals]):.1f}% of requests")
 
+    p50 = percentile(totals, 50)
+    p99 = percentile(totals, 99)
+    pct_within = float(100 * np.mean([t <= service.latency_budget_ms for t in totals]))
+
     # Graceful degradation: a ranker that always throws.
     class BrokenRanker:
         def rank(self, *a, **k):
@@ -145,6 +152,15 @@ def main():
     print("  - Swap PopularityCandidateGenerator for the Phase 1 two-tower ANN.")
     print("  - Serve behind Ray Serve / BentoML; move the store online to Redis.")
     print("  - Phase 4: monitor these logs for drift; Phase 5: A/B test v1 vs v2.\n")
+    save_results(PHASE_DIR, {
+        "requests": len(totals),
+        "p50_ms": p50,
+        "p99_ms": p99,
+        "pct_within_budget": pct_within,
+        "budget_ms": float(service.latency_budget_ms),
+        "ineligible_filtered": len(ineligible),
+        "feature_log_rows": len(service.feature_log),
+    })
     return service
 
 

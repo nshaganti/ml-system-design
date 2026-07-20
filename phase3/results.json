@@ -1,0 +1,9 @@
+{
+  "budget_ms": 100.0,
+  "feature_log_rows": 40020,
+  "ineligible_filtered": 0,
+  "p50_ms": 4.21,
+  "p99_ms": 5.791,
+  "pct_within_budget": 100.0,
+  "requests": 2000
+}

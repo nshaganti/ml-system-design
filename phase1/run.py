@@ -36,6 +36,9 @@ from two_tower import get_all_item_embeddings
 from train import train
 from index import EmbeddingIndex
 from ranker import TwoTowerRanker
+from results_io import save_results
+
+PHASE_DIR = Path(__file__).parent
 
 # Phase 0 writes its metrics here; we load them for a fair comparison instead
 # of hardcoding numbers that silently rot when Phase 0 is rerun.
@@ -140,6 +143,10 @@ def main():
     print(f"  {'Warm user recall':<25} {PHASE0_WARM:>10.4f} {results['warm_user_recall']:>10.4f}")
     print(f"  {'Cold-start recall':<25} {PHASE0_COLD:>10.4f} {results['cold_start_recall']:>10.4f}")
     print("=" * 55)
+
+    # Persist for the scoreboard generator + HTML report.
+    save_results(PHASE_DIR, results)
+    print(f"[run] Saved Phase 1 metrics to {PHASE_DIR / 'results.json'}")
 
     print("\nNext steps:")
     print("  - View the training run: mlflow ui --port 5000")

@@ -22,17 +22,14 @@ Dataset:
 import sys
 from pathlib import Path
 
-import json
-
 sys.path.insert(0, str(Path(__file__).parent))
 
 from load_data import load_events, load_item_properties, summarize
 from heuristic_ranker import HeuristicRanker
 from evaluate import temporal_split, recall_at_k
+from results_io import save_results
 
-# Where Phase 0 metrics are persisted so Phase 1 can compare against real
-# numbers instead of a hardcoded constant.
-RESULTS_PATH = Path(__file__).parent / "results.json"
+PHASE_DIR = Path(__file__).parent
 
 
 def main():
@@ -70,9 +67,10 @@ def main():
         catalog_size=catalog_size,
     )
 
-    # Persist so Phase 1 can load the baseline instead of hardcoding it.
-    RESULTS_PATH.write_text(json.dumps(results, indent=2))
-    print(f"\n[run] Saved Phase 0 baseline metrics to {RESULTS_PATH}")
+    # Persist so Phase 1 can load the baseline, and so the scoreboard generator
+    # (scripts/build_results.py) can read real numbers instead of hand-copied ones.
+    save_results(PHASE_DIR, results)
+    print(f"\n[run] Saved Phase 0 baseline metrics to {PHASE_DIR / 'results.json'}")
 
     print("\nNext steps:")
     print("  - This Recall@20 is your Phase 1 target to beat.")

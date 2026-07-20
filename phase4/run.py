@@ -48,6 +48,9 @@ from monitors import (
     check_fallback_rate, check_diversity, check_calibration,
     expected_calibration_error,
 )
+from results_io import save_results
+
+PHASE_DIR = Path(__file__).parent
 
 SEED = 42
 DAY_MS = 86_400 * 1000
@@ -160,6 +163,16 @@ def main():
     print("  - Wire these checks into an Airflow DAG; alert via PagerDuty on FAIL.")
     print("  - Use Evidently AI for richer drift; Great Expectations for data asserts.")
     print("  - Phase 5: A/B test lr_ranker_v1 vs v2 using the model_version tag.\n")
+    save_results(PHASE_DIR, {
+        "gate_status": overall.gate_status,
+        "gate_passed": bool(overall.passed),
+        "calibration_ece": float(ece),
+        "mean_diversity": float(np.mean(diversities)),
+        "fallback_rate": float(fallbacks / len(sample_users)) if sample_users else 0.0,
+        "row_count_ratio": float(cur_win.height / ref_win.height) if ref_win.height else 0.0,
+        "engagement_rate": float(eng / n_test) if n_test else 0.0,
+        "target_action_rate": float(conv / n_test) if n_test else 0.0,
+    })
     return overall
 
 

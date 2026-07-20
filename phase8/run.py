@@ -33,6 +33,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 from load_data import load_events, load_random_log
 from signals import WEAK
 import ope
+from results_io import save_results
+
+PHASE_DIR = Path(__file__).parent
 
 SOFTMAX_TEMPERATURE = 1.0
 
@@ -137,6 +140,19 @@ def main():
     print("  - Doubly Robust starts from the biased model and corrects it with the")
     print("    known propensities -- unbiased if EITHER piece is right.")
     print("  - ESS warns when pi strays too far from beta for IPS to be trustworthy.")
+
+    results = {
+        "v_true": v_true,
+        "v_naive": v_naive,
+        "ips": float(ips_v),
+        "snips": float(snips_v),
+        "doubly_robust": float(dr_v),
+        "ess": float(ess),
+        "n_random_rows": int(len(pi_probs)),
+        "n_items": n_items,
+    }
+    save_results(PHASE_DIR, results)
+    return results
 
 
 if __name__ == "__main__":

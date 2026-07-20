@@ -49,6 +49,10 @@ from experiment import two_proportion_ztest
 
 from streaming_store import StreamingFeatureStore
 
+from results_io import save_results
+
+PHASE_DIR = Path(__file__).parent
+
 SEED = 42
 K = 20
 STRONG = list(POSITIVE_SIGNALS)
@@ -149,6 +153,18 @@ def main():
     print("  - Reserve online LEARNING (retrain on the stream) for <1min SLAs only;")
     print("    it adds catastrophic-forgetting and time-skew failure modes.")
     print("  - That completes Phases 0-6: the full offline-to-online lifecycle.\n")
+
+    save_results(PHASE_DIR, {
+        "control_label": "frozen_batch",
+        "treatment_label": "fresh_streaming",
+        "control_rate": result.control_rate,
+        "treatment_rate": result.treatment_rate,
+        "relative_lift": result.relative_lift,
+        "p_value": result.p_value,
+        "significant": result.significant,
+        "n_control": result.n_control,
+        "n_treatment": result.n_treatment,
+    })
     return result
 
 

@@ -1,0 +1,11 @@
+{
+  "control_label": "popularity",
+  "control_rate": 0.22782936347732471,
+  "n_control": 7431,
+  "n_treatment": 7569,
+  "p_value": 0.03271972609289864,
+  "relative_lift": -0.0634643266590018,
+  "significant": true,
+  "treatment_label": "lr_ranker",
+  "treatment_rate": 0.21337032633108732
+}

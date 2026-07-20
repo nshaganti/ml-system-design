@@ -1,0 +1,10 @@
+{
+  "calibration_ece": 0.11523557106876661,
+  "engagement_rate": 0.12916170707429295,
+  "fallback_rate": 0.0,
+  "gate_passed": false,
+  "gate_status": "FAIL",
+  "mean_diversity": 4.195,
+  "row_count_ratio": 0.5185048770575086,
+  "target_action_rate": 0.32014603824280774
+}
