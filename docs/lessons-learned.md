@@ -9,20 +9,22 @@ The per-phase walkthroughs ([phase0](phase0.md), [phase1](phase1.md),
 
 ---
 
-## 1. A neural net does not automatically beat a heuristic
+## 1. A model's value depends on the data regime -- measure, don't assume
 
-Our two-tower model **lost** to a popularity+category heuristic (Recall@20
-0.0228 vs 0.0310), even after popularity-weighted negatives and a train/serve
-fix. That's normal. A strong heuristic is a genuinely hard baseline, and beating
-it takes side features and tuning, not just "we used embeddings."
+Our two-tower model **beat** the popularity+category heuristic on KuaiRand
+(Recall@20 0.1231 vs 0.0670, +84%) -- because the feedback is dense and the
+catalog is small. The *same* model on a sparse e-commerce log typically **loses**
+to that heuristic. Neither outcome is guaranteed by the architecture; both are
+properties of the data.
 
-**Reflex:** report lift over a real baseline, measured temporally. "We used a
+**Reflex:** report lift over a real baseline, measured temporally, and never
+assume a model helps until you've measured it in *your* data regime. "We used a
 DNN" is not a result.
 
 ## 2. Training-serving skew is real, invisible, and measurable
 
 Building features the naive way (join *today's* stats onto old events) inflated
-our feature values by **2.0-2.8x**. No crash, no error -- just a model trained on
+our feature values by **2.0-2.4x**. No crash, no error -- just a model trained on
 a distribution it will never see at serving time.
 
 **Reflex:** never join "current" feature tables to historical events. Use
@@ -35,21 +37,25 @@ It's not magic. Build a per-entity timeline of *prior* cumulative counts, then d
 a **backward as-of join** at each event's timestamp. That yields "the value as of
 strictly before this moment" -- leakage-free. (`phase2/feature_store.py`)
 
-## 4. Features constant along one axis cannot personalize
+## 4. Expressing personalization is necessary but not sufficient
 
-An LR ranker with only `item_pop` and `user_pop` **tied popularity exactly** --
-because per user, those features don't vary in a way that reorders items. Adding a
-**cross feature** (`user_cat_affinity`, which varies per user x item) is what
-produced actual personalized lift.
+An LR ranker with only `item_pop` and `user_pop` can't personalize at all --
+per user, those features don't vary in a way that reorders items. You need a
+**cross feature** (`user_cat_affinity`, varying per user x item) even to *express*
+personalization. But on KuaiRand that cross feature was too weak -- category is
+coarse and engagement is popularity-driven -- so it actually **hurt** (-12% NDCG),
+despite the model assigning it a large positive in-sample weight.
 
-**Reflex:** if your ranker won't beat popularity, check whether your features can
-even *express* personalization before blaming the model.
+**Reflex:** a cross feature is required to express personalization, but judge it
+by *out-of-sample* lift, not by whether the model likes it. A feature can be
+expressible and still carry no signal (Rules 17 & 20).
 
 ## 5. Interpretable models tell you things black boxes hide
 
-Our LR ranker learned a **negative** weight on `user_pop` (-0.35): highly active
+Our LR ranker learned a **negative** weight on `user_pop` (-0.61): highly active
 users are pickier per-item. That's a real behavioral insight, free, from reading
-a coefficient. You'd never spot it in a 500-tree ensemble.
+a coefficient. Interpretability also let us *diagnose* why a positively-weighted
+feature still hurt (lesson 4) -- you'd never see either in a 500-tree ensemble.
 
 **Reflex:** start interpretable (Rules 4, 14). Earn complexity only when a simple
 model demonstrably plateaus.
@@ -106,18 +112,19 @@ skew-free training data a byproduct of serving.
 **Reflex:** if you can't answer "what features did the model see for this exact
 request?", you can't train v2 safely.
 
-## 13. The scary failures are silent -- and drift ties the system together
+## 13. The scary failures are silent -- run every monitoring layer
 
-ML systems rot without raising exceptions: stale features, out-of-stock items,
-null columns, shifting priors. Our drift monitor caught a **PSI of 0.47** between
-train and serve windows -- the *same* popularity shift that caused the 2-2.8x
-skew in Phase 2, now surfaced as a deploy-blocking signal. Measuring one
-phenomenon two independent ways and having them agree is how you earn trust in a
-system.
+ML systems rot without raising exceptions: stale features, ineligible items, null
+columns, shifting priors, halved row counts. On KuaiRand feature drift was
+*stable* (PSI 0.024), so the drift alarm correctly stayed quiet -- and two *other*
+checks caught the real problems: the serving window had ~half the reference rows,
+and the ranker was miscalibrated (ECE 0.115). A monitor with a favorite failure
+mode is half-blind; the value is in covering inputs, behavior, and outcomes at
+once.
 
-**Reflex:** monitor inputs (drift), behavior (fallback, calibration, diversity),
-and outcomes (business metrics) -- and make at least one of them a *gate*, not
-just a dashboard. A red gate is information, not an insult.
+**Reflex:** monitor inputs (drift, volume, nulls), behavior (fallback,
+calibration, diversity), and outcomes (business metrics) -- and make at least one
+of them a *gate*, not just a dashboard. A red gate is information, not an insult.
 
 ## 14. "Works on my machine" is not "works in CI" (a real pitfall we hit)
 
@@ -139,64 +146,81 @@ the Actions logs via the API, not by guessing.
 
 ## 15. Offline lift is a hypothesis; the A/B test is the verdict
 
-Our LR ranker beat popularity by +2% NDCG offline (Phase 2). Under a proper
-two-proportion z-test it came back **p=0.84, not significant** -- the confidence
-interval straddled zero. Offline wins routinely shrink or vanish when tested,
-because offline eval can't see how users react to what they were never shown.
+Phase 2's LR ranker *lost* to popularity offline (-12% NDCG). A proper
+two-proportion z-test on live-style traffic confirmed it: **-10%, p=0.0006,
+significant**, with the 95% CI entirely below zero. This time offline and online
+*agreed*, and the test gave us the statistical confidence to kill the change
+decisively. (Offline and online don't always agree -- which is exactly why you run
+the test.)
 
-Just as important: the experiment was **12x underpowered** (needed ~14.7k users
-per arm, had ~1.2k) -- and the sample-size math said so *before* we ran it.
+Just as important: this experiment was **adequately powered** (~7,500 users per
+arm at a ~23% baseline), and you know that because you compute the sample size
+*before* running.
 
 **Reflex:** compute required sample size BEFORE the experiment. Run until you hit
-it. Then let the p-value decide -- not the fact that one number is slightly
-higher. "Not significant" means *do not ship on this*, not "ship the bigger one."
-And assignment must be sticky and salted, or the whole comparison is silently
-contaminated.
+it. Then let the p-value decide. A *significant negative* is the tool working --
+it just saved you from shipping a -10% regression. And assignment must be sticky
+and salted, or the whole comparison is silently contaminated.
 
-## 16. Fresh data can beat a better model
+## 16. Fresh data helps only on the right workload -- measure before you assume
 
-The single largest, most clearly-significant win in this entire project was not
-an algorithm. Streaming one in-session event into the online feature store --
-with the model **byte-for-byte unchanged** -- lifted hit@20 by **+57%**
-(p=0.004). The Phase 5 ranker upgrade, by contrast, was inconclusive. Same
-statistics, opposite verdict.
+A popular maxim is "fresh data beats a better model." On KuaiRand it *didn't*:
+streaming one in-session event into the online store -- model byte-for-byte
+unchanged -- moved hit@20 by **+0.2% (p=0.91, not significant)**. Short-video
+engagement here just isn't bursty-intent enough for a 30-second delta layer to
+matter. On an e-commerce cart it can be a huge win. Same machinery, opposite
+workload, opposite verdict.
 
-**Reflex:** before tuning the model, ask whether your features are *fresh* and
-*correct*. Separate what changes fast (features -> stream them) from what changes
-slow (models -> retrain them). Reach for online learning only when streaming
-features genuinely can't meet the SLA -- it adds real failure modes
-(catastrophic forgetting, time-skew) for a usually-small marginal gain.
+**Reflex:** build the freshness lever (it's cheap and correct), but *measure* its
+payoff on your workload rather than assuming it. Separate what changes fast
+(features -> stream them) from what changes slow (models -> retrain them), and
+reach for online learning only when streaming genuinely can't meet the SLA.
 
 ## 17. Benchmark against the right TASK, and measure it yourself
 
-We spent six phases on next-*purchase* over the full catalog. The community task
-for this dataset is next-*item in a session*. When we finally implemented the
-community-standard method (co-visitation) and eval (leave-one-out), a simple,
-untuned, pure-Python model hit **Recall@20=0.344** -- beating every learned model
-we'd built. It was never a model-complexity problem; it was a **task-framing and
-candidate-generation** problem.
+The community's classic task for interaction logs is next-*item in a session*, not
+next-action over the full catalog. When we implemented the community-standard
+method (co-visitation) and eval (leave-one-out), it beat popularity by **+61%**
+(Recall@20 0.0797 vs 0.0496) -- a real but *modest* win, because KuaiRand's small
+catalog makes popularity a strong session baseline. On a sparse e-commerce log the
+same method often wins by orders of magnitude. Win size is a property of the data.
 
-Also note *how* we answered "how did others do it?": we had no web access, so
-instead of citing (i.e. fabricating) leaderboard numbers, we **built the standard
-method and measured it on our own data**. A measured +4236% beats a cited number
-you can't reproduce.
+Also note *how* we answered "how did others do it?": with no web access, instead
+of citing (i.e. fabricating) leaderboard numbers, we **built the standard method
+and measured it on our own data**.
 
 **Reflex:** confirm you're solving the same task others benchmark before comparing
-numbers. And when you can't verify an external claim, reproduce it -- don't quote
-it. Never fabricate a comparison.
+numbers. When you can't verify an external claim, reproduce it -- don't quote it.
+Never fabricate a comparison.
 
 ## 18. A canonical schema makes the hardest thing to change (the data) easy
 
 We set up a canonical event/property schema in Phase 0 almost as an afterthought.
-Its payoff arrived much later: swapping the *entire dataset* from Retail Rocket to
-H&M took **zero changes to any of the seven phases** -- just a new loader module
-behind a `DATASET` env var. Every phase spoke the canonical schema, so none of
-them knew or cared which dataset was underneath.
+Its payoff arrived much later: rebasing the **entire project** onto KuaiRand -- a
+completely different domain (short video, not e-commerce) -- touched only a loader
+module behind the `DATASET` dispatcher. All eight phases spoke the canonical
+schema plus the WEAK/MEDIUM/STRONG signal taxonomy, so none of them knew or cared
+which dataset was underneath.
 
 **Reflex:** define a canonical internal schema at the boundary and translate every
 external source into it *once*. The alternative -- phases reaching into raw,
 dataset-specific columns -- turns a data swap into a full rewrite. Cheap discipline
 early, huge optionality later.
+
+## 19. Your offline metric can be biased by 2x -- and only a known logging policy fixes it (Part II)
+
+After all of Part I's discipline -- temporal splits, point-in-time features,
+shared denominators, honest A/B tests -- the offline metric everyone ships on was
+*still* wrong. Grading a target policy on the biased production log overstated its
+true value by **+100%** (0.523 vs a ground truth of 0.261). The fix isn't more
+data; it's KuaiRand's **uniform-random exposure log**, whose known propensities
+let IPS/SNIPS reweight the estimate back to the truth (SNIPS: 0.6% error).
+
+**Reflex:** confounded logs make offline metrics biased, not just noisy. Serve a
+small slice of traffic randomly (or at least *log your propensities*), and use
+off-policy estimators (SNIPS, doubly robust) to screen policies before spending
+live traffic on them. Watch effective sample size when the new policy drifts from
+the logging one.
 
 ---
 
@@ -204,6 +228,9 @@ early, huge optionality later.
 
 In a notebook, success = a good number on a held-out set. In production, success =
 **a number you can trust and explain**, produced by a pipeline that won't silently
-lie to you. Most of the work -- temporal splits, point-in-time features, shared
-denominators, interpretable models, train/serve parity -- exists to protect that
-trust. The model is the easy part.
+lie to you. Part I's work -- temporal splits, point-in-time features, shared
+denominators, interpretable models, train/serve parity, honest experimentation --
+exists to protect that trust. Part II's off-policy evaluation is the humbling
+coda: even a disciplined offline number can be *causally* biased by 2x, and fixing
+that takes a known logging policy, not a fancier model. The model is the easy
+part; trustworthy, causally-sound evaluation is the whole game.

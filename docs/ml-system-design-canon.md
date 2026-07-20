@@ -48,7 +48,7 @@ countermeasures.
 | Glue code & pipeline jungles | one shared feature builder; a dataset dispatcher | `phase2/training.py`, `phase0/load_data.py` |
 | Training/serving skew | log-and-reuse serving features; point-in-time joins | `phase3/service.py`, `phase2/feature_store.py` |
 | CACE ("Changing Anything Changes Everything") | comparable-groups scoreboard + per-phase A/B deltas | `docs/results.md`, `phase5` |
-| Undeclared consumers / feedback loops | policy layer separation; exposure-bias work | `phase3/service.py`, **Part II** |
+| Undeclared consumers / feedback loops | policy layer separation; off-policy evaluation | `phase3/service.py`, `phase8/ope.py` |
 | Unmonitored features | feature registry with owners; drift monitors | `docs/feature-registry.md`, `phase4` |
 
 ---
@@ -72,10 +72,11 @@ For the causality-aware track we lean on the counterfactual-learning literature:
   (IPS, SNIPS, position-bias correction).
 - **Doubly Robust policy evaluation** -- Dudik, Langford, Li.
 
-These land as **Phase 8+** (logging & propensities -> IPS/SNIPS/DR off-policy
-evaluation -> unbiased LTR -> contextual bandits -> uplift). The default synthetic
-generator emits a **known logging policy** precisely so these estimators can be
-validated against ground truth.
+These land in **Phase 8** (logging & propensities -> IPS/SNIPS/DR off-policy
+evaluation) and point onward toward unbiased LTR, contextual bandits, and uplift.
+KuaiRand's **uniform-random exposure log** provides the known logging policy
+(`beta = 1/N`) that lets these estimators be validated against ground truth --
+see [`phase8.md`](phase8.md) and [`off-policy-evaluation.md`](off-policy-evaluation.md).
 
 ---
 
@@ -87,5 +88,6 @@ validated against ground truth.
    subset of the ML Test Score.
 3. **Honest debt:** where we *defer* a rule, we say so and why (better than silent
    debt -- the Sculley lesson).
-4. **Runs anywhere:** a domain-neutral synthetic generator is the default, so every
-   principle is demonstrable with zero downloads.
+4. **Reproducible on real data:** every phase runs on real KuaiRand-Pure, and the
+   test suite runs on tiny in-memory frames (zero download) so the principles are
+   demonstrable in CI without the dataset.
