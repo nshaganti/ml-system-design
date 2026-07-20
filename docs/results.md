@@ -181,6 +181,31 @@ See [`phase9.md`](phase9.md).
 
 ---
 
+## Group G -- Sequence model vs co-visitation (Phase 10)
+
+*Comparable within the group only -- same leave-one-out session protocol and the
+SAME test cases as Group D (Phase 7).* The only thing that changes is the model:
+popularity, co-visitation (co-occurrence), and GRU4Rec (a sequence model that reads
+session order).
+
+<!-- AUTOGEN:groupG -->
+| Metric | Popularity | Co-visitation | GRU4Rec |
+|---|---|---|---|
+| Recall@20 | 0.0498 | **0.0801** | 0.0691 |
+| MRR@20 | 0.0128 | **0.0203** | 0.0172 |
+| NDCG@20 | 0.0207 | **0.0332** | 0.0283 |
+<!-- /AUTOGEN:groupG -->
+
+**Verdict:** an honest surprise. A basic, CPU-budget GRU4Rec **beats popularity**
+(order carries real signal) but **loses to plain co-visitation** by ~15%. On a
+small catalog with strong pairwise co-occurrence, the cheap item-kNN is a
+remarkably hard baseline; closing the gap would need heavier tuning (negative
+sampling, a bigger model, many more epochs) -- and might still not be worth it. This
+is Phase 2's lesson again: **the fancier model is not automatically better -- you
+measure it.** See [`phase10.md`](phase10.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -195,6 +220,7 @@ See [`phase9.md`](phase9.md).
 | 7 Co-visitation | **task framing** (session signal) | +60% on session next-item | up (diff task) |
 | 8 OPE | **causal truth** | naive metric was +100% biased | -- |
 | 9 Off-policy learning | **causal learning** | unbiased-learned policy +87% true value | up (true value) |
+| 10 Sequence model | **order modelling** (GRU4Rec) | beats popularity, LOSES to co-vis by ~15% | up vs pop, down vs covis |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline

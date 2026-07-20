@@ -29,8 +29,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import polars as pl
-
 sys.path.insert(0, str(Path(__file__).parent.parent / "phase0"))
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -39,6 +37,7 @@ from evaluate import temporal_split
 from metrics import recall_at_k, ndcg_at_k, mean
 
 from covisitation import CoVisitationRecommender, sessionize, session_item_lists
+from session_eval import build_test_cases, reciprocal_rank
 
 from results_io import save_results
 
@@ -46,24 +45,6 @@ PHASE_DIR = Path(__file__).parent
 
 MAX_TEST_SESSIONS = 30_000
 K = 20
-
-
-def reciprocal_rank(recommended: list[str], target: str, k: int) -> float:
-    for i, item in enumerate(recommended[:k], start=1):
-        if item == target:
-            return 1.0 / i
-    return 0.0
-
-
-def build_test_cases(test_events: pl.DataFrame) -> list[tuple[list[str], str]]:
-    """Leave-one-out cases: (context_items, target_item) per multi-item session."""
-    sessions = sessionize(test_events)
-    cases = []
-    for items in session_item_lists(sessions):
-        seen = list(dict.fromkeys(items))     # de-dup, keep order
-        if len(seen) >= 2:
-            cases.append((seen[:-1], seen[-1]))
-    return cases
 
 
 def evaluate(recommender, cases, mode: str) -> dict:

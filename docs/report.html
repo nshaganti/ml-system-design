@@ -62,9 +62,14 @@
       <div style="height:260px"><canvas id="chartF"></canvas></div><div class="mt-6"></div><div style="height:260px"><canvas id="chartFsweep"></canvas></div>
       <p class="text-sm text-slate-500 mt-3">Left: learning from unbiased data nearly doubles true policy value. Right: bias doesn't average out - it takes ~100k unbiased rows to beat a policy fit on 1.44M biased rows (dashed = naive baseline).</p>
     </section>
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Group G - Session next-item: popularity vs co-visitation vs GRU4Rec (Phase 10)</h2>
+      <div style="height:260px"><canvas id="chartG"></canvas></div>
+      <p class="text-sm text-slate-500 mt-3">Honest surprise: the GRU4Rec sequence model beats popularity but LOSES to cheap co-visitation on this small catalog. Fancier isn't automatically better.</p>
+    </section>
 
     <footer class="text-center text-sm text-slate-500 pt-4">
-      Part I (Phases 0-7): build a recommender with production discipline.
+      Part I (Phases 0-7, +10): build a recommender with production discipline.
       Part II (Phases 8-9): prove the offline metric was biased, then fix the learning.
     </footer>
   </div>
@@ -130,6 +135,21 @@
           options: { maintainAspectRatio: false,
             plugins: { legend: { position: 'bottom' } },
             scales: { x: { title: { display: true, text: 'random-log rows used' } } } }
+        });
+        new Chart(document.getElementById('chartG'), {
+          type: 'bar',
+          data: {
+            labels: ['Recall@20', 'MRR@20', 'NDCG@20'],
+            datasets: [
+              { label: 'Popularity', backgroundColor: '#94a3b8',
+                 data: [0.0498, 0.0128, 0.0207] },
+              { label: 'Co-visitation', backgroundColor: '#16a34a',
+                 data: [0.0801, 0.0203, 0.0332] },
+              { label: 'GRU4Rec', backgroundColor: '#2563eb',
+                 data: [0.0691, 0.0172, 0.0283] }
+            ]
+          },
+          options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
         });
   </script>
 </body>

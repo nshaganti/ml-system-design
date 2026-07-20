@@ -153,10 +153,21 @@ def group_f(p9: dict) -> str:
     ])
 
 
+def group_g(p10: dict) -> str:
+    pop, cov, gru = p10["popularity"], p10["covisitation"], p10["gru4rec"]
+    out = ["| Metric | Popularity | Co-visitation | GRU4Rec |", "|---|---|---|---|"]
+    for label, key in [("Recall@20", "recall"), ("MRR@20", "mrr"), ("NDCG@20", "ndcg")]:
+        vals = {"pop": pop[key], "cov": cov[key], "gru": gru[key]}
+        best = max(vals, key=vals.get)
+        cells = {k: f"**{v:.4f}**" if k == best else f"{v:.4f}" for k, v in vals.items()}
+        out.append(f"| {label} | {cells['pop']} | {cells['cov']} | {cells['gru']} |")
+    return "\n".join(out)
+
+
 # --------------------------------------------------------------- main
 
 def build(text: str) -> str:
-    p = {n: load(n) for n in range(10)}
+    p = {n: load(n) for n in range(11)}
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -169,6 +180,8 @@ def build(text: str) -> str:
         text = replace_block(text, "groupE", group_e(p[8]))
     if p[9]:
         text = replace_block(text, "groupF", group_f(p[9]))
+    if p[10]:
+        text = replace_block(text, "groupG", group_g(p[10]))
     return text
 
 

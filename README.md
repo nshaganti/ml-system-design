@@ -39,7 +39,8 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase4.md`](docs/phase4.md) -- monitoring and drift detection: three health layers and a blocking pipeline gate.
 - [`docs/phase5.md`](docs/phase5.md) -- A/B testing: sticky assignment, a two-proportion z-test, and a *significant* verdict to not ship the weaker ranker.
 - [`docs/phase6.md`](docs/phase6.md) -- near-real-time freshness: streaming features with no retrain (and an honest not-significant result here).
-- [`docs/phase7.md`](docs/phase7.md) -- session co-visitation: +61% over popularity on the community's next-item task.
+- [`docs/phase7.md`](docs/phase7.md) -- session co-visitation: +60% over popularity on the community's next-item task.
+- [`docs/phase10.md`](docs/phase10.md) -- a GRU4Rec **sequence model** on the same protocol: beats popularity but **loses to co-visitation** by ~15% (fancier isn't automatically better).
 
 **Part II -- causality-aware evaluation:**
 
@@ -80,6 +81,9 @@ us.** Written for an ML engineer moving from notebooks to production.
 ├── phase9/                   # Off-policy learning -- Part II (Rules 23, 36)
 │   ├── ope.py                #   IPS / SNIPS / Direct Method / Doubly Robust / ESS
 │   └── run.py                #   biased-vs-random OPE experiment
+├── phase10/                  # GRU4Rec sequence model (Part I extension)
+├── scripts/                  # build_results.py + build_report.py (scoreboard/report generators)
+├── run_all.py                # run every phase end-to-end, then rebuild docs
 ├── tests/                    # pytest suite (tiny in-memory frames, no CSVs needed)
 ├── requirements.txt
 └── .github/workflows/ci.yml  # runs pytest on push / PR
@@ -138,6 +142,7 @@ cd phase4 && python run.py   # monitoring: 3 health layers + a blocking pipeline
 cd phase5 && python run.py   # A/B replay: significant -6%, do NOT ship the weak ranker
 cd phase6 && python run.py   # freshness: streamed features, no retrain (not significant here)
 cd phase7 && python run.py   # session co-visitation: +60% over popularity
+cd phase10 && python run.py  # GRU4Rec sequence model: beats popularity, loses to co-vis
 cd phase8 && python run.py   # PART II -- OPE: naive metric +100% biased vs SNIPS 0.6%
 cd phase9 && python run.py   # PART II -- OPL: policy learned on unbiased data +87% true value
 ```
@@ -187,6 +192,7 @@ CI runs the same suite on every push and pull request.
 - [x] Phase 5 -- A/B testing (sticky assignment, z-test, power analysis)
 - [x] Phase 6 -- near-real-time freshness (streaming features, no retrain)
 - [x] Phase 7 -- session-based co-visitation benchmark
+- [x] Phase 10 -- GRU4Rec sequence model (beats popularity, loses to co-visitation)
 
 **Part II -- causality-aware evaluation:**
 

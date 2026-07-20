@@ -45,7 +45,7 @@ def _chart(canvas_id: str, height: int = 260) -> str:
 
 
 def build() -> str:
-    p = {n: load(n) for n in range(10)}
+    p = {n: load(n) for n in range(11)}
     charts_js: list[str] = []
     cards: list[str] = []
 
@@ -156,6 +156,32 @@ def build() -> str:
             scales: {{ x: {{ title: {{ display: true, text: 'random-log rows used' }} }} }} }}
         }});""")
 
+    # --- Group D/G: session next-item (Phase 7 + 10) -------------------
+    if p[10]:
+        cards.append(_card(
+            "Group G - Session next-item: popularity vs co-visitation vs GRU4Rec (Phase 10)",
+            _chart("chartG"),
+            "Honest surprise: the GRU4Rec sequence model beats popularity but LOSES to "
+            "cheap co-visitation on this small catalog. Fancier isn't automatically better.",
+        ))
+        pop, cov, gru = p[10]["popularity"], p[10]["covisitation"], p[10]["gru4rec"]
+        charts_js.append(f"""
+        new Chart(document.getElementById('chartG'), {{
+          type: 'bar',
+          data: {{
+            labels: ['Recall@20', 'MRR@20', 'NDCG@20'],
+            datasets: [
+              {{ label: 'Popularity', backgroundColor: '#94a3b8',
+                 data: [{pop['recall']:.4f}, {pop['mrr']:.4f}, {pop['ndcg']:.4f}] }},
+              {{ label: 'Co-visitation', backgroundColor: '#16a34a',
+                 data: [{cov['recall']:.4f}, {cov['mrr']:.4f}, {cov['ndcg']:.4f}] }},
+              {{ label: 'GRU4Rec', backgroundColor: '#2563eb',
+                 data: [{gru['recall']:.4f}, {gru['mrr']:.4f}, {gru['ndcg']:.4f}] }}
+            ]
+          }},
+          options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }} }}
+        }});""")
+
     # --- serving + gate summary tiles (Phase 3, 4) ----------------------
     tiles = []
     if p[3]:
@@ -212,7 +238,7 @@ def build() -> str:
     {"".join(cards)}
 
     <footer class="text-center text-sm text-slate-500 pt-4">
-      Part I (Phases 0-7): build a recommender with production discipline.
+      Part I (Phases 0-7, +10): build a recommender with production discipline.
       Part II (Phases 8-9): prove the offline metric was biased, then fix the learning.
     </footer>
   </div>
