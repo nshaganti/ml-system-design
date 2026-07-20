@@ -1,15 +1,25 @@
-# ML System Design: Real-Time Recommendation Engine
+# ML System Design: A Recommender-Systems Field Guide
 
-A hands-on, phase-by-phase build of a production-style product recommendation
-system, following [Google's Rules of Machine Learning](https://developers.google.com/machine-learning/guides/rules-of-ml).
-It uses the [Retail Rocket e-commerce dataset](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset)
-as the vehicle and grows from a no-ML heuristic baseline into a two-tower
-retrieval model -- with the same evaluation harness used at every step so
-comparisons stay honest.
+A hands-on, phase-by-phase build of a production-style recommender system,
+following [Google's Rules of Machine Learning](https://developers.google.com/machine-learning/guides/rules-of-ml).
+It runs on **real data** -- the [KuaiRand-Pure](https://kuairand.com) short-video
+interaction logs -- and grows from a no-ML heuristic baseline into two-tower
+retrieval, a feature store, a serving path, monitoring, A/B testing, freshness,
+session co-visitation, and finally **causality-aware off-policy evaluation** --
+with the same evaluation harness at every step so comparisons stay honest.
+
+The project is in two parts:
+
+- **Part I -- Classic recommender (Phases 0-7):** build and ship a recommender the
+  way most teams do, with production discipline (temporal eval, feature stores,
+  serving SLAs, monitoring, honest A/B).
+- **Part II -- Causality-aware evaluation (Phase 8):** confront the fact that the
+  offline metrics Part I trusts are *biased*, and fix it with off-policy
+  evaluation on KuaiRand's uniform-random exposure log.
 
 The design narrative lives in two documents:
 
-- [`ml-system-design-recommendation-engine.md`](ml-system-design-recommendation-engine.md) -- the end-to-end architecture (Phases 0-6).
+- [`ml-system-design-recommendation-engine.md`](ml-system-design-recommendation-engine.md) -- the end-to-end architecture.
 - [`ml-system-design-methodology-and-pitfalls.md`](ml-system-design-methodology-and-pitfalls.md) -- the methodology and common traps.
 
 ## Learning walkthroughs (start here)
@@ -19,16 +29,28 @@ walkthrough follows the same arc: **the problem -> the design decision and why -
 a tour of the code -> the actual measured results -> the gotchas that surprised
 us.** Written for an ML engineer moving from notebooks to production.
 
-- [`docs/phase0.md`](docs/phase0.md) -- launch without ML; temporal evaluation; the baseline.
-- [`docs/phase1.md`](docs/phase1.md) -- two-tower retrieval, and why our ML model *lost* to the heuristic (and what we did about it).
-- [`docs/phase2.md`](docs/phase2.md) -- the feature store, training-serving skew measured at ~2x, and the ranker that finally wins.
-- [`docs/phase3.md`](docs/phase3.md) -- the serving architecture: the 100ms request path, latency budgets, graceful fallback, and Rule 29 feature logging.
-- [`docs/phase4.md`](docs/phase4.md) -- monitoring and drift detection: three health layers, PSI drift caught at 0.47, and a pipeline gate.
-- [`docs/phase5.md`](docs/phase5.md) -- A/B testing: sticky assignment, a two-proportion z-test, and why our offline win came back inconclusive.
-- [`docs/phase6.md`](docs/phase6.md) -- near-real-time freshness: streaming features (no retrain) for a significant +57% hit@20 lift.
-- [`docs/results.md`](docs/results.md) -- the consolidated scoreboard: every phase's numbers, grouped by what's *actually* comparable, with the honest story (complexity bought robustness, freshness bought accuracy).
-- [`docs/benchmarking-vs-literature.md`](docs/benchmarking-vs-literature.md) -- how we stack up against the community's actual task (session next-item). Co-visitation scores Recall@20=0.344, beating every learned model here.
-- [`docs/datasets.md`](docs/datasets.md) -- the canonical schema, the WEAK/MEDIUM/STRONG signal taxonomy, the zero-download synthetic default, and how to plug in any dataset with no phase changes.
+**Part I -- classic recommender:**
+
+- [`docs/phase0.md`](docs/phase0.md) -- launch without ML; temporal evaluation; the baseline (Recall@20 = 0.067).
+- [`docs/phase1.md`](docs/phase1.md) -- two-tower retrieval that **beats** the heuristic (+84% recall, +120% coverage) on dense feedback.
+- [`docs/phase2.md`](docs/phase2.md) -- the feature store, training-serving skew, and why a weak cross feature made the ranker *lose* to popularity (Rules 17 & 20).
+- [`docs/phase3.md`](docs/phase3.md) -- the serving architecture: the 100ms request path (p50 4.1ms), latency budgets, graceful fallback, Rule 29 feature logging.
+- [`docs/phase4.md`](docs/phase4.md) -- monitoring and drift detection: three health layers and a blocking pipeline gate.
+- [`docs/phase5.md`](docs/phase5.md) -- A/B testing: sticky assignment, a two-proportion z-test, and a *significant* verdict to not ship the weaker ranker.
+- [`docs/phase6.md`](docs/phase6.md) -- near-real-time freshness: streaming features with no retrain (and an honest not-significant result here).
+- [`docs/phase7.md`](docs/phase7.md) -- session co-visitation: +61% over popularity on the community's next-item task.
+
+**Part II -- causality-aware evaluation:**
+
+- [`docs/phase8.md`](docs/phase8.md) -- off-policy evaluation: the naive offline metric was **+100% biased**; SNIPS on the random log recovers truth to 0.6%.
+- [`docs/off-policy-evaluation.md`](docs/off-policy-evaluation.md) -- the deep dive on IPS / SNIPS / DM / DR and why known propensities matter.
+
+**Cross-cutting:**
+
+- [`docs/results.md`](docs/results.md) -- the consolidated scoreboard, grouped by what's *actually* comparable.
+- [`docs/benchmarking-vs-literature.md`](docs/benchmarking-vs-literature.md) -- how we stack up against the community's session next-item task.
+- [`docs/datasets.md`](docs/datasets.md) -- the canonical schema, the WEAK/MEDIUM/STRONG signal taxonomy, and how to plug in any dataset with no phase changes.
+- [`docs/rules-of-ml.md`](docs/rules-of-ml.md) -- where each of Google's 43 Rules lives in this codebase.
 - [`docs/lessons-learned.md`](docs/lessons-learned.md) -- the greatest-hits cheat sheet of production reflexes.
 
 ---
@@ -37,40 +59,25 @@ us.** Written for an ML engineer moving from notebooks to production.
 
 ```
 .
-├── data/                     # dataset CSVs go here (gitignored, not committed)
+├── data/                     # KuaiRand-Pure CSVs go here (gitignored; see data/README.md)
 ├── phase0/                   # Heuristic baseline (no ML)
-│   ├── load_data.py          #   load + validate + canonical schema
+│   ├── load_data.py          #   dataset dispatcher + canonical schema + random-log hook
+│   ├── signals.py            #   WEAK/MEDIUM/STRONG signal taxonomy (Rule 7)
+│   ├── data_sources/         #   pluggable adapters (kuairand.py)
 │   ├── heuristic_ranker.py   #   popularity + category-affinity ranker
 │   ├── evaluate.py           #   temporal split, Recall@K, coverage
 │   └── run.py                #   phase 0 entry point -> writes results.json
 ├── phase1/                   # Two-tower candidate generation (first ML model)
-│   ├── dataset.py            #   BPR triples, item vocab, user histories
-│   ├── two_tower.py          #   model, BPR loss, embedding extraction
-│   ├── train.py              #   training loop + MLflow tracking
-│   ├── index.py              #   brute-force ANN over item embeddings
-│   ├── ranker.py             #   two-tower ranker w/ phase 0 fallback
-│   └── run.py                #   phase 1 entry point (compares vs phase 0)
 ├── phase2/                   # LR ranker + point-in-time feature store
-│   ├── feature_store.py      #   point-in-time correct + online + skewed features
-│   ├── lr_ranker.py          #   interpretable logistic-regression ranker
-│   └── run.py                #   phase 2 entry point (+ skew demonstration)
 ├── phase3/                   # Serving architecture (the 100ms request path)
-│   ├── candidate_generator.py#   Stage 1 behind an interface (popularity impl)
-│   ├── service.py            #   request handler: timed stages, fallback, feature log
-│   └── run.py                #   phase 3 entry point (latency test + fault injection)
 ├── phase4/                   # Monitoring & drift detection (Rule 10)
-│   ├── monitors.py           #   PSI/KL/ECE numeric core + check framework + gate
-│   └── run.py                #   phase 4 entry point (3 health layers + gate)
 ├── phase5/                   # A/B testing / online experimentation (Rule 16)
-│   ├── experiment.py         #   sticky assignment + two-proportion z-test + power
-│   └── run.py                #   phase 5 entry point (replay A/B + significance)
 ├── phase6/                   # Near-real-time freshness (Rule 8)
-│   ├── streaming_store.py    #   frozen batch features + live delta layer (no retrain)
-│   └── run.py                #   phase 6 entry point (frozen vs fresh experiment)
 ├── phase7/                   # Session-based co-visitation (community benchmark)
-│   ├── covisitation.py       #   sessionize + item-kNN co-visitation recommender
-│   └── run.py                #   phase 7 entry point (leave-one-out next-item eval)
-├── tests/                    # pytest suite (synthetic data, no CSVs needed)
+├── phase8/                   # Off-policy evaluation -- Part II (Rules 23, 36)
+│   ├── ope.py                #   IPS / SNIPS / Direct Method / Doubly Robust / ESS
+│   └── run.py                #   biased-vs-random OPE experiment
+├── tests/                    # pytest suite (tiny in-memory frames, no CSVs needed)
 ├── requirements.txt
 └── .github/workflows/ci.yml  # runs pytest on push / PR
 ```
@@ -92,175 +99,80 @@ pip install -i https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/extern
 
 ### 2. Get the dataset
 
-**Default -- synthetic (no download).** The repo ships a seeded, in-memory,
-domain-neutral dataset generator, so everything runs out of the box:
+Download **KuaiRand-Pure** and place it in `data/KuaiRand-Pure/` (see
+[`data/README.md`](data/README.md) for the exact layout). KuaiRand is used because
+it ships both a *biased* production log (Part I) and a *uniform-random* exposure
+log whose known propensities make honest off-policy evaluation possible (Part II).
 
 ```bash
-cd phase0 && python run.py                      # uses DATASET=synthetic
-SYNTH_USERS=5000 python run.py                  # bigger synthetic dataset
-```
-
-> Synthetic numbers are for plumbing, not benchmarking -- they prove the pipeline
-> runs and the invariants hold, not that a model is good.
-
-**Optional -- real data.** The pipeline is dataset-agnostic. Drop a real
-dataset's CSVs in `data/` and flip one env var:
-
-```bash
-cd phase0 && DATASET=retailrocket python run.py   # e-commerce clickstream
-cd phase0 && DATASET=hm          python run.py   # H&M purchases
+cd phase0 && python run.py                      # kuairand (default)
+KUAIRAND_MAX_ROWS=200000 python run.py          # cap rows on small machines
 ```
 
 See [`docs/datasets.md`](docs/datasets.md) for the canonical schema, the signal
-taxonomy, and how to add your own dataset. Adding one = a module in
-`phase0/data_sources/` + one line in the dispatcher; no phase code changes.
+taxonomy, and how to add your own dataset (a module in `phase0/data_sources/` +
+one line in the dispatcher; no phase code changes).
 
-### 3. Run Phase 0 (heuristic baseline)
+> The **test suite needs no download** -- `tests/` runs on tiny in-memory frames.
 
-```bash
-cd phase0
-python run.py
-```
-
-This loads the data, does a temporal 80/20 split, fits the popularity +
-category-affinity ranker, evaluates Recall@20 / coverage, and writes the
-baseline metrics to `phase0/results.json`.
-
-### 4. Run Phase 1 (two-tower model)
+### 3-10. Run the phases
 
 ```bash
-cd phase1
-python run.py
+cd phase0 && python run.py   # heuristic baseline; Recall@20 = 0.067 (writes results.json)
+cd phase1 && python run.py   # two-tower; +84% recall vs Phase 0 (MLflow-tracked)
+cd phase2 && python run.py   # LR ranker + point-in-time feature store + skew audit
+cd phase3 && python run.py   # serving: p50 4.1ms, load test, fault-injection fallback
+cd phase4 && python run.py   # monitoring: 3 health layers + a blocking pipeline gate
+cd phase5 && python run.py   # A/B replay: significant -9%, do NOT ship the weak ranker
+cd phase6 && python run.py   # freshness: streamed features, no retrain (not significant here)
+cd phase7 && python run.py   # session co-visitation: +61% over popularity
+cd phase8 && python run.py   # PART II -- OPE: naive metric +100% biased vs SNIPS 0.6%
 ```
 
-This trains the two-tower model (tracked in MLflow), builds the embedding
-index, evaluates with the **same** `recall_at_k` used in Phase 0, and prints a
-head-to-head comparison against the Phase 0 baseline it loads from
-`results.json`.
-
-Inspect the training runs:
-
-```bash
-mlflow ui --port 5000   # then open http://localhost:5000
-```
-
-### 5. Run Phase 2 (LR ranker + feature store)
-
-```bash
-cd phase2
-python run.py
-```
-
-This fits a **point-in-time feature store**, trains an interpretable
-logistic-regression ranker on leakage-free features, and -- the headline --
-**quantifies training-serving skew** by showing how much the naive
-"join today's totals" approach inflates historical feature values.
-
-### 6. Run Phase 3 (the serving architecture)
-
-```bash
-cd phase3
-python run.py
-```
-
-This assembles Phases 1-2 into a live recommendation **service** and exercises
-it: a single request with a per-stage latency breakdown, a load test reporting
-p50/p99 latency against the 100ms budget, fault injection proving graceful
-fallback, and the **Rule 29 inference feature log** (the seed of skew-free
-next-generation training data).
-
-### 7. Run Phase 4 (monitoring & drift detection)
-
-```bash
-cd phase4
-python run.py
-```
-
-This runs three health layers (data / model / business) over real data and
-prints a single **pipeline gate**. The feature-drift check fires (PSI 0.47) --
-the same popularity shift Phase 2 measured as skew, now caught as a blocking,
-monitorable signal.
-
-### 8. Run Phase 5 (A/B testing)
-
-```bash
-cd phase5
-python run.py
-```
-
-This runs an offline **replay** A/B test (popularity vs the LR ranker) with the
-real statistical machinery: sticky/salted assignment, a two-proportion z-test
-with confidence intervals, and up-front sample-size planning. Spoiler: the
-offline win comes back **inconclusive** -- a lesson in not shipping on noise.
-
-### 9. Run Phase 6 (near-real-time freshness)
-
-```bash
-cd phase6
-python run.py
-```
-
-This streams a user's in-session behavior into the online feature store and shows
-how their recommendations change **without any retraining**. The quantified
-experiment finds a significant **+57% hit@20 lift** (p=0.004) from freshness
-alone -- on this data, fresh features beat a fancier ranker.
-
-### 10. Run Phase 7 (session co-visitation benchmark)
-
-```bash
-cd phase7
-python run.py
-```
-
-This benchmarks us against the community's actual task -- session-based next-item
-prediction, leave-one-out. A simple co-visitation model scores **Recall@20=0.344**
-(vs 0.008 for popularity), beating every learned model from Phases 1-2 on the task
-they should have targeted. The honest gap analysis is in
-[`docs/benchmarking-vs-literature.md`](docs/benchmarking-vs-literature.md).
+Inspect Phase 1 training runs with `mlflow ui --port 5000`.
 
 ---
 
 ## Running the tests
 
-The suite uses small synthetic DataFrames -- no dataset download required.
-
 ```bash
-pytest tests/ -q
+pytest tests/ -q     # 104 tests, tiny in-memory data, no dataset download required
 ```
 
-CI runs the same suite on every push and pull request (Python 3.9 and 3.11).
+CI runs the same suite on every push and pull request.
 
 ---
 
 ## Design principles baked in
 
-- **Temporal evaluation only** (Rule 33) -- never a random split; the model
-  never sees the future.
-- **Same eval harness across phases** -- `TwoTowerRanker` implements the same
-  `.recommend()` interface as `HeuristicRanker`, so `recall_at_k` compares them
-  apples-to-apples (same users, same seed, same coverage denominator).
-- **Heuristic fallback for cold-start** (Rule 28) -- the ML model serves warm
-  users; the Phase 0 heuristic covers users with no learnable history.
+- **Temporal evaluation only** (Rule 33) -- never a random split; the model never
+  sees the future.
+- **Same eval harness across phases** -- every ranker implements the same
+  `.recommend()` interface, so `recall_at_k` compares them apples-to-apples.
+- **Heuristic fallback for cold-start** (Rule 28) -- ML serves warm users; the
+  Phase 0 heuristic covers users with no learnable history.
 - **Interpretable-first** (Rules 4, 14) -- start simple, earn complexity.
+- **Trust your metric, then distrust it** (Rules 23, 36) -- Part I builds evaluation
+  discipline; Part II proves the offline metric was still biased and fixes it.
 
 ---
 
 ## Roadmap
 
+**Part I -- classic recommender:**
+
 - [x] Phase 0 -- heuristic baseline
 - [x] Phase 1 -- two-tower candidate generation
 - [x] Phase 2 -- logistic-regression ranker + point-in-time feature store
 - [x] Phase 3 -- serving architecture (100ms request path, fallback, feature logging)
-- [x] Phase 4 -- monitoring & drift detection (3 health layers, PSI gate)
+- [x] Phase 4 -- monitoring & drift detection (3 health layers, gate)
 - [x] Phase 5 -- A/B testing (sticky assignment, z-test, power analysis)
 - [x] Phase 6 -- near-real-time freshness (streaming features, no retrain)
+- [x] Phase 7 -- session-based co-visitation benchmark
 
-All six phases from the design doc are implemented, tested, and run on the real
-Retail Rocket dataset. See the [learning walkthroughs](#learning-walkthroughs-start-here).
+**Part II -- causality-aware evaluation:**
 
-**Bonus -- Phase 7 (`phase7/`):** a session-based co-visitation benchmark against
-the community's actual task. It scores Recall@20=0.344 (leave-one-out next-item),
-beating every learned model in Phases 1-2 -- see
-[`docs/benchmarking-vs-literature.md`](docs/benchmarking-vs-literature.md).
+- [x] Phase 8 -- off-policy evaluation (IPS / SNIPS / DM / DR on the random log)
 
-See the design doc for the full multi-phase plan.
+All phases are implemented, tested, and run on real KuaiRand-Pure data. See the
+[learning walkthroughs](#learning-walkthroughs-start-here).

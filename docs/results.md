@@ -1,13 +1,14 @@
 # Results & Performance Progression
 
-This is the consolidated scoreboard for Phases 0-6. Read the **big caveat** first,
-because the single most important thing about these numbers is that **most of them
-are not directly comparable to each other** -- and pretending otherwise is exactly
-the kind of self-deception this whole project is about avoiding.
+This is the consolidated scoreboard for Phases 0-8 on **real KuaiRand-Pure data**
+(seed 42, 80/20 temporal split). Read the **big caveat** first, because the single
+most important thing about these numbers is that **most of them are not directly
+comparable to each other** -- and pretending otherwise is exactly the kind of
+self-deception this whole project is about avoiding.
 
 ---
 
-## The big caveat: complexity did not monotonically improve accuracy
+## The big caveat: read groups, not one trend line
 
 It is tempting to draw one line -- "we added complexity, the metric went up." For
 this system that line would be a **lie**, for three reasons:
@@ -15,21 +16,21 @@ this system that line would be a **lie**, for three reasons:
 1. **Different metrics.** Phases 0-2 report `Recall@20`; Phases 5-6 report `hit@20`
    (a per-user binary). These measure different things.
 2. **Different denominators / candidate sets.** Phase 0-1 recall is over the
-   *full catalog*. Phase 2 recall is over a *500-item popularity pool*. A smaller
-   candidate set inflates recall -- so Phase 2's 0.027 is **not** better than
-   Phase 0's 0.031; they're measured against different universes.
-3. **Different populations.** Phase 5/6 evaluate subsets (test purchasers,
+   *full catalog*. Phase 2 reranks a fixed candidate pool. Phase 7 is next-item
+   *within a session* -- an easier task entirely.
+3. **Different populations.** Phase 5/6 evaluate subsets (test positives,
    multi-event users), not the same user set as Phase 0/1.
 
 So the tables below are **grouped by what is actually comparable.** Cross-group
 comparisons are explicitly flagged as invalid.
 
-> **The honest through-line:** raw offline accuracy did *not* climb steadily with
-> complexity. Phase 1 (our first ML model) *regressed* against the Phase 0
-> heuristic. Phases 3-5 added production capability (serving, monitoring,
-> experimentation) with essentially **no accuracy change** -- that was the point.
-> The one large, statistically-significant accuracy win came in Phase 6 from
-> **fresher data, not a more complex model.**
+> **The honest through-line (KuaiRand):** on dense feedback and a small catalog,
+> the ML retrieval model **does** beat the heuristic (Phase 1, +84%). But a weak
+> single cross-feature **hurts** (Phase 2), the A/B test honestly rules that weak
+> ranker out (Phase 5, significant -9%), and in-session freshness barely moves
+> (Phase 6). Then **Part II (Phase 8) drops the real bomb: the offline metrics
+> everyone trusts were biased by 2x.** Complexity bought robustness and honesty;
+> causality-aware evaluation bought *truth*.
 
 ---
 
@@ -40,128 +41,137 @@ same temporal split.
 
 | Metric | Phase 0 (heuristic) | Phase 1 (two-tower) | Change |
 |---|---|---|---|
-| Recall@20 | **0.0310** | 0.0228 | **-26%** (regression) |
-| Warm-user recall | **0.0474** | 0.0190 | -60% |
-| Cold-start recall | 0.0244 | 0.0244 | tie (Phase 1 falls back to heuristic) |
-| Catalog coverage | 0.0140 | 0.0118 | -16% |
+| Recall@20 | 0.0670 | **0.1231** | **+84%** |
+| Warm-user recall | 0.0656 | **0.1231** | +88% |
+| Cold-start recall | 0.1175 | **0.1213** | +3% |
+| Catalog coverage | 0.0714 | **0.1570** | +120% |
 
-**Verdict:** the learned model lost to the heuristic. A strong popularity +
-category baseline is genuinely hard to beat with a pure ID-embedding two-tower on
-sparse histories. See [`phase1.md`](phase1.md) for the debugging story.
+**Verdict:** the learned two-tower **beats** the heuristic on every axis -- roughly
+1.8x recall and 2.2x coverage. This is the *opposite* of what a sparse e-commerce
+log tends to show: KuaiRand's feedback is dense (a third of events are strong) and
+the catalog is small (~7.5k videos), so ID-embedding retrieval has enough signal to
+learn from. See [`phase1.md`](phase1.md).
 
 ---
 
 ## Group B -- Reranking a fixed candidate pool (Phase 2)
 
-*Comparable within the group only.* Both rankers reorder the **same 500-item
-popularity pool**; the only difference is the ranker. **Not comparable to Group A**
-(different, much smaller candidate universe).
+*Comparable within the group only.* Both rankers reorder the **same popularity
+pool**; the only difference is the ranker.
 
 | Metric | Popularity order | LR ranker | Change |
 |---|---|---|---|
-| Recall@20 | 0.0260 | **0.0270** | +3.8% |
-| NDCG@20 | 0.0181 | **0.0185** | +2.0% |
+| Recall@20 | **0.0730** | 0.0657 | -10% |
+| NDCG@20 | **0.0439** | 0.0380 | -13% |
 
-Ranker weights (interpretable, the reason we chose LR): `item_pop=3.08`,
-`user_cat_affinity=2.93`, `user_pop=-0.35`.
-
-**Verdict:** the ranker adds a small, real personalization lift over raw
-popularity -- but note even 0.0270 is *below* Phase 0's 0.0310, because the
-popularity pool is a weaker candidate source than the heuristic's category-aware
-selection. Reranking can't recover relevant items the candidate stage never
-surfaced.
+**Verdict:** the LR ranker with a single `user_cat_affinity` cross feature
+**loses** to raw popularity order. On KuaiRand the category tag is coarse and
+engagement is popularity-driven, so that one feature carries little signal -- and a
+feature with no signal is dead weight (Rules 17 & 20). This is a genuine,
+instructive negative result, not a bug. The point-in-time feature store and the
+train/serve skew audit still matter regardless of the lift's sign.
 
 ---
 
 ## Group C -- Per-user hit@20 (Phases 5 & 6)
 
 *Comparable within the group.* Metric = "did any of the user's actual later
-purchases land in the top-20?" (binary per user). **Not comparable to Groups A/B**
-(different metric and populations).
+positive actions land in the top-20?" (binary per user). **Not comparable to
+Groups A/B** (different metric and populations).
 
 | Experiment | Arm A | Arm B | Lift | Significance |
 |---|---|---|---|---|
-| **Phase 5:** popularity vs LR ranker | 0.0401 (popularity) | 0.0385 (LR) | -4.0% | p=0.84 -- **not significant** |
-| **Phase 6:** frozen vs fresh features | 0.0397 (frozen batch) | **0.0625 (fresh stream)** | **+57%** | p=0.004 -- **significant** |
+| **Phase 5:** popularity vs LR ranker | **0.2276 (popularity)** | 0.2072 (LR) | -9.0% | p=0.0024 -- **significant** |
+| **Phase 6:** frozen vs fresh features | 0.2343 (frozen batch) | 0.2348 (fresh stream) | +0.2% | p=0.913 -- **not significant** |
 
-**Verdict:** the two experiments use the *same statistics* and reach *opposite*
-conclusions. Refining the ranker (Phase 5) was inconclusive noise. Refining data
-**freshness** (Phase 6) was a large, significant win -- **with the model
-byte-for-byte unchanged.**
+**Verdict:** the A/B test (Phase 5) confirms Group B's finding with proper
+statistics -- the weak LR ranker is *significantly worse*, so **do not ship**.
+Feature freshness (Phase 6) barely moves and is not significant: short-video
+engagement here is less bursty-intent than an e-commerce cart, so a 30-second delta
+layer adds little. Same statistical machinery, honest verdicts in both directions.
 
-> Sanity check: Phase 5's popularity arm (0.0401) and Phase 6's frozen arm
-> (0.0397) are ~equal, as they should be -- both are the batch/popularity setup
-> measured the same way. That consistency is a small confidence signal that the
-> harness is behaving.
+> Sanity check: Phase 5's popularity arm (0.2276) and Phase 6's frozen arm (0.2343)
+> are ~equal, as they should be -- both are the batch/popularity setup measured the
+> same way. That consistency is a small confidence signal that the harness behaves.
 
 ---
 
 ## Group D -- Session-based next-item (Phase 7, the community protocol)
 
-*Comparable within the group.* Leave-one-out next-item within a session,
-Recall@20 / MRR@20 / NDCG@20 -- the protocol public RetailRocket notebooks and
-the session-rec literature use. **Not comparable to Groups A-C** (different task:
-next *item in session* vs next *purchase*, and a much easier target).
+*Comparable within the group.* Leave-one-out next-item within a session. **Not
+comparable to Groups A-C** (different, easier task: next *item in session*).
 
 | Metric | Popularity | Co-visitation | Lift |
 |---|---|---|---|
-| Recall@20 | 0.0079 | **0.3440** | +4236% |
-| MRR@20 | 0.0009 | **0.1541** | +16951% |
-| NDCG@20 | 0.0023 | **0.1971** | +8316% |
+| Recall@20 | 0.0496 | **0.0797** | +61% |
+| MRR@20 | 0.0127 | **0.0203** | +60% |
+| NDCG@20 | 0.0206 | **0.0331** | +61% |
 
-**Verdict:** a simple, untuned, pure-Python co-visitation model **beats every
-learned model from Phases 1-2** when measured on the task those models should
-have targeted. 0.344 Recall@20 is a legitimate session-rec number. This is the
-clearest evidence of where Phases 0-6 underperformed: we ignored the session
-signal and session co-visitation -- the dominant approach on this data. See
+**Verdict:** a simple, untuned, pure-Python co-visitation model beats popularity by
+~60% on the session task -- the session signal is real and cheap to exploit. See
 [`benchmarking-vs-literature.md`](benchmarking-vs-literature.md).
+
+---
+
+## Group E -- Off-policy evaluation (Phase 8, Part II)
+
+*Not comparable to anything above -- it grades a **policy's value**, and it grades
+the honesty of offline evaluation itself.* Ground truth is computable only because
+KuaiRand ships a uniform-random log.
+
+| Estimator | Value | Error vs truth |
+|---|---|---|
+| **Ground truth** (π × random-log rewards) | 0.261 | -- |
+| Naive / Direct Method (biased log) | 0.523 | **+100%** |
+| IPS | 0.244 | 6.4% |
+| **SNIPS** | 0.259 | **0.6%** |
+| Doubly Robust | 0.277 | 6.1% |
+
+**Verdict:** the naive offline metric -- the one most teams ship on -- overstates
+the target policy's true value by **2x**, purely from confounding. Reweighting the
+random log by known propensities recovers the truth (SNIPS to 0.6%). This is the
+capstone lesson of the repo: *even after all of Part I's discipline, your offline
+number can still be a factor of two wrong.* See [`phase8.md`](phase8.md) and
+[`off-policy-evaluation.md`](off-policy-evaluation.md).
 
 ---
 
 ## What each phase actually bought
 
-Accuracy is only one axis. Most phases traded in a *different* currency -- and
-that's the real story of going from prototype to production.
-
 | Phase | Primary currency | Headline result | Accuracy delta |
 |---|---|---|---|
-| 0 Heuristic | a **baseline** | Recall@20 = 0.031 | (defines zero) |
-| 1 Two-tower | a **pipeline** (MLflow, index, eval) | regressed on accuracy | **down** |
-| 2 Feature store + LR | **correctness** (skew measured 2-2.8x) + interpretability | small pool-rerank lift | ~flat |
-| 3 Serving | **latency & robustness** (p50 6ms, fallback) | no accuracy change | flat |
-| 4 Monitoring | **trust** (PSI 0.47 drift caught, gate) | no accuracy change | flat |
-| 5 A/B testing | **honesty** (don't ship noise) | inconclusive | flat |
-| 6 Freshness | **fresh data** | +57% hit@20, significant | **up (big)** |
+| 0 Heuristic | a **baseline** | Recall@20 = 0.067 | (defines zero) |
+| 1 Two-tower | a **pipeline** + real retrieval win | +84% recall, +120% coverage | **up** |
+| 2 Feature store + LR | **correctness** (skew audit) + interpretability | weak cross feature hurt (-13% NDCG) | down |
+| 3 Serving | **latency & robustness** (p50 4.1ms, fallback) | no accuracy change | flat |
+| 4 Monitoring | **trust** (drift gate FAIL, as designed) | no accuracy change | flat |
+| 5 A/B testing | **honesty** (don't ship the worse ranker) | significant -9% | down (correctly) |
+| 6 Freshness | **fresh data** (streamed, no retrain) | +0.2%, not significant | flat |
+| 7 Co-visitation | **task framing** (session signal) | +61% on session next-item | up (diff task) |
+| 8 OPE | **causal truth** | naive metric was +100% biased | -- |
 
-> **Coda (Phase 7).** After benchmarking against the community's actual task
-> (session next-item), a simple co-visitation model scored Recall@20=0.344 --
-> beating every learned model here on the task they should have targeted. The
-> lesson compounds: it wasn't a model-complexity problem, it was a *task-framing
-> and candidate-generation* problem. See
-> [`benchmarking-vs-literature.md`](benchmarking-vs-literature.md).
-
-**The lesson in one line:** we spent six phases adding complexity, and the complexity
-mostly bought *robustness, correctness, and trust* -- not raw accuracy. The one
-accuracy breakthrough came from feeding the same model **fresher data**. In
-production ML, that is the rule, not the exception (Rules 8 & the "features > models"
-mantra).
+**The lesson in one line:** Part I's complexity bought robustness, correctness, and
+honest experimentation; Part II's causal evaluation revealed that the offline
+numbers underneath all of it were still 2x biased. In production ML, trustworthy
+evaluation is the whole game (Rules 8, 23, 36).
 
 ---
 
 ## Reproducing these numbers
 
-Every number here is produced by a `run.py` on the real Retail Rocket dataset
-(seed 42, 80/20 temporal split). To regenerate:
+Every number is produced by a `run.py` on real KuaiRand-Pure (seed 42, 80/20
+temporal split). To regenerate:
 
 ```bash
-cd phase0 && python run.py     # Group A: heuristic (writes results.json)
+cd phase0 && python run.py     # Group A: heuristic baseline (writes results.json)
 cd phase1 && python run.py     # Group A: two-tower vs Phase 0
-cd phase2 && python run.py     # Group B: LR ranker vs popularity + skew
-cd phase5 && python run.py     # Group C: A/B replay (inconclusive)
-cd phase6 && python run.py     # Group C: frozen vs fresh (significant)
+cd phase2 && python run.py     # Group B: LR ranker vs popularity + skew audit
+cd phase5 && python run.py     # Group C: A/B replay (significant -9%)
+cd phase6 && python run.py     # Group C: frozen vs fresh (not significant)
 cd phase7 && python run.py     # Group D: session co-visitation benchmark
+cd phase8 && python run.py     # Group E: off-policy evaluation (Part II)
 ```
 
 Small run-to-run variation is expected (negative sampling, user subsampling); the
-*conclusions* -- the regression, the inconclusive ranker test, the significant
-freshness win -- are stable.
+*conclusions* -- the Phase 1 win, the weak-feature regression, the significant A/B
+loss, the flat freshness result, and the 2x OPE bias -- are stable.
