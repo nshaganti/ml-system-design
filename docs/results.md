@@ -206,6 +206,35 @@ measure it.** See [`phase10.md`](phase10.md).
 
 ---
 
+## Group H -- Position-bias debiasing (Phase 11, controlled simulation)
+
+*Not comparable to any other group -- it grades how well an estimator recovers the
+true relevance RANKING from position-confounded clicks.* **Honesty note:**
+KuaiRand-Pure logs no on-screen position, so unlike every other phase this one runs
+on a controlled simulation (known examination curve + known relevance), the way you
+prove an estimator works before trusting it on real position-carrying logs.
+
+<!-- AUTOGEN:groupH -->
+| Estimator | Spearman vs truth | Top-10 recovery |
+|---|---|---|
+| Naive CTR | 0.862 | 60% |
+| IPW (true propensity) | **0.967** | 80% |
+| IPW (estimated propensity) | 0.948 | 80% |
+<!-- /AUTOGEN:groupH -->
+
+**Verdict:** naive click-through rate ranks *positions* as much as items, so it
+mis-orders relevance. Inverse-propensity weighting divides out each slot's
+examination probability and recovers the true ranking (Spearman 0.86 -> 0.97). And
+you don't need to know the examination curve: a small **result-randomization
+bucket** estimates it (curve recovered at Spearman 0.90), and IPW with the
+estimated curve is nearly as good as the oracle. This is the same disease and cure
+as Part II -- confounded logs, fixed by known (or known-able) propensities. One
+catch worth remembering: IPW is unbiased but *high variance* -- divide by a tiny
+deep-slot propensity and the estimate explodes, so bounded propensities / clipping
+matter in practice. See [`phase11.md`](phase11.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -221,6 +250,7 @@ measure it.** See [`phase10.md`](phase10.md).
 | 8 OPE | **causal truth** | naive metric was +100% biased | -- |
 | 9 Off-policy learning | **causal learning** | unbiased-learned policy +87% true value | up (true value) |
 | 10 Sequence model | **order modelling** (GRU4Rec) | beats popularity, LOSES to co-vis by ~15% | up vs pop, down vs covis |
+| 11 Position debiasing | **causal labels** (IPW) | recovered ranking Spearman 0.86 -> 0.97 | up (ranking quality) |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline

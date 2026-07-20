@@ -164,10 +164,24 @@ def group_g(p10: dict) -> str:
     return "\n".join(out)
 
 
+def group_h(p11: dict) -> str:
+    rows = [
+        ("Naive CTR", p11["naive"]),
+        ("IPW (true propensity)", p11["ipw_true"]),
+        ("IPW (estimated propensity)", p11["ipw_estimated"]),
+    ]
+    best = max(rows, key=lambda r: r[1]["spearman"])[0]
+    out = ["| Estimator | Spearman vs truth | Top-10 recovery |", "|---|---|---|"]
+    for label, m in rows:
+        sp = f"**{m['spearman']:.3f}**" if label == best else f"{m['spearman']:.3f}"
+        out.append(f"| {label} | {sp} | {m['topk_recovery'] * 100:.0f}% |")
+    return "\n".join(out)
+
+
 # --------------------------------------------------------------- main
 
 def build(text: str) -> str:
-    p = {n: load(n) for n in range(11)}
+    p = {n: load(n) for n in range(12)}
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -182,6 +196,8 @@ def build(text: str) -> str:
         text = replace_block(text, "groupF", group_f(p[9]))
     if p[10]:
         text = replace_block(text, "groupG", group_g(p[10]))
+    if p[11]:
+        text = replace_block(text, "groupH", group_h(p[11]))
     return text
 
 

@@ -45,7 +45,7 @@ def _chart(canvas_id: str, height: int = 260) -> str:
 
 
 def build() -> str:
-    p = {n: load(n) for n in range(11)}
+    p = {n: load(n) for n in range(12)}
     charts_js: list[str] = []
     cards: list[str] = []
 
@@ -180,6 +180,34 @@ def build() -> str:
             ]
           }},
           options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }} }}
+        }});""")
+
+    # --- Group H: position-bias debiasing (Phase 11) -------------------
+    if p[11]:
+        cards.append(_card(
+            "Group H - Position-bias debiasing (Phase 11, simulation)",
+            _chart("chartH"),
+            "Naive CTR ranks positions as much as items. IPW divides out the slot "
+            "effect and recovers the true ranking - even with the examination curve "
+            "estimated from a randomization bucket. (Controlled sim: Pure logs no position.)",
+        ))
+        n, t, e = p[11]["naive"], p[11]["ipw_true"], p[11]["ipw_estimated"]
+        charts_js.append(f"""
+        new Chart(document.getElementById('chartH'), {{
+          type: 'bar',
+          data: {{
+            labels: ['Spearman vs truth', 'Top-10 recovery'],
+            datasets: [
+              {{ label: 'Naive CTR', backgroundColor: '#dc2626',
+                 data: [{n['spearman']:.3f}, {n['topk_recovery']:.3f}] }},
+              {{ label: 'IPW (true propensity)', backgroundColor: '#16a34a',
+                 data: [{t['spearman']:.3f}, {t['topk_recovery']:.3f}] }},
+              {{ label: 'IPW (estimated propensity)', backgroundColor: '#2563eb',
+                 data: [{e['spearman']:.3f}, {e['topk_recovery']:.3f}] }}
+            ]
+          }},
+          options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }},
+            scales: {{ y: {{ min: 0, max: 1 }} }} }}
         }});""")
 
     # --- serving + gate summary tiles (Phase 3, 4) ----------------------

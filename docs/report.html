@@ -67,6 +67,11 @@
       <div style="height:260px"><canvas id="chartG"></canvas></div>
       <p class="text-sm text-slate-500 mt-3">Honest surprise: the GRU4Rec sequence model beats popularity but LOSES to cheap co-visitation on this small catalog. Fancier isn't automatically better.</p>
     </section>
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Group H - Position-bias debiasing (Phase 11, simulation)</h2>
+      <div style="height:260px"><canvas id="chartH"></canvas></div>
+      <p class="text-sm text-slate-500 mt-3">Naive CTR ranks positions as much as items. IPW divides out the slot effect and recovers the true ranking - even with the examination curve estimated from a randomization bucket. (Controlled sim: Pure logs no position.)</p>
+    </section>
 
     <footer class="text-center text-sm text-slate-500 pt-4">
       Part I (Phases 0-7, +10): build a recommender with production discipline.
@@ -150,6 +155,22 @@
             ]
           },
           options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+        new Chart(document.getElementById('chartH'), {
+          type: 'bar',
+          data: {
+            labels: ['Spearman vs truth', 'Top-10 recovery'],
+            datasets: [
+              { label: 'Naive CTR', backgroundColor: '#dc2626',
+                 data: [0.862, 0.600] },
+              { label: 'IPW (true propensity)', backgroundColor: '#16a34a',
+                 data: [0.967, 0.800] },
+              { label: 'IPW (estimated propensity)', backgroundColor: '#2563eb',
+                 data: [0.948, 0.800] }
+            ]
+          },
+          options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } },
+            scales: { y: { min: 0, max: 1 } } }
         });
   </script>
 </body>

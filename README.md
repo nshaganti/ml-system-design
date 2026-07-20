@@ -46,6 +46,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 
 - [`docs/phase8.md`](docs/phase8.md) -- off-policy evaluation: the naive offline metric was **+100% biased**; SNIPS on the random log recovers truth to 0.6%.
 - [`docs/phase9.md`](docs/phase9.md) -- off-policy **learning**: a policy learned from the random log has **+87%** the true value of one learned from the (larger) biased log. Bias doesn't average out.
+- [`docs/phase11.md`](docs/phase11.md) -- **position-bias debiasing** (controlled sim): naive CTR ranks positions as much as items; IPW recovers the true ranking (Spearman 0.86 -> 0.97), with the examination curve learned from a randomization bucket.
 - [`docs/off-policy-evaluation.md`](docs/off-policy-evaluation.md) -- the deep dive on IPS / SNIPS / DM / DR and why known propensities matter.
 
 **Cross-cutting:**
@@ -82,6 +83,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 │   ├── ope.py                #   IPS / SNIPS / Direct Method / Doubly Robust / ESS
 │   └── run.py                #   biased-vs-random OPE experiment
 ├── phase10/                  # GRU4Rec sequence model (Part I extension)
+├── phase11/                  # Position-bias debiasing -- Part II (controlled sim)
 ├── scripts/                  # build_results.py + build_report.py (scoreboard/report generators)
 ├── run_all.py                # run every phase end-to-end, then rebuild docs
 ├── tests/                    # pytest suite (tiny in-memory frames, no CSVs needed)
@@ -143,6 +145,7 @@ cd phase5 && python run.py   # A/B replay: significant -6%, do NOT ship the weak
 cd phase6 && python run.py   # freshness: streamed features, no retrain (not significant here)
 cd phase7 && python run.py   # session co-visitation: +60% over popularity
 cd phase10 && python run.py  # GRU4Rec sequence model: beats popularity, loses to co-vis
+cd phase11 && python run.py  # PART II -- position debiasing: IPW recovers ranking 0.86 -> 0.97
 cd phase8 && python run.py   # PART II -- OPE: naive metric +100% biased vs SNIPS 0.6%
 cd phase9 && python run.py   # PART II -- OPL: policy learned on unbiased data +87% true value
 ```
@@ -198,6 +201,7 @@ CI runs the same suite on every push and pull request.
 
 - [x] Phase 8 -- off-policy evaluation (IPS / SNIPS / DM / DR on the random log)
 - [x] Phase 9 -- off-policy learning (train a policy on unbiased data; +87% true value)
+- [x] Phase 11 -- position-bias debiasing (IPW + result-randomization propensities)
 
 All phases are implemented, tested, and run on real KuaiRand-Pure data. See the
 [learning walkthroughs](#learning-walkthroughs-start-here).

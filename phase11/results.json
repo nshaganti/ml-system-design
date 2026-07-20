@@ -1,0 +1,15 @@
+{
+  "exam_curve_spearman": 0.8960600375234522,
+  "ipw_estimated": {
+    "spearman": 0.9478424015009381,
+    "topk_recovery": 0.8
+  },
+  "ipw_true": {
+    "spearman": 0.9673545966228893,
+    "topk_recovery": 0.8
+  },
+  "naive": {
+    "spearman": 0.8621013133208255,
+    "topk_recovery": 0.6
+  }
+}
