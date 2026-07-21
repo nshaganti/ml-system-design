@@ -259,6 +259,43 @@ evaluation is the whole game (Rules 8, 23, 36).
 
 ---
 
+## Does complexity pay? (the honest curve)
+
+The tempting story is "each phase adds sophistication, so accuracy climbs." **The
+data says otherwise.** Sorting the *comparable* additions by whether they moved the
+needle -- and remembering that only within-group numbers are comparable:
+
+| Added complexity | Comparable delta | Paid off? |
+|---|---|---|
+| Two-tower retrieval (P1 vs P0) | Recall@20 +83%, coverage +116% | **Yes -- big** |
+| Co-visitation for sessions (P7) | +60% vs popularity (session task) | **Yes** (different, easier task) |
+| IPW debiasing of labels (P11) | ranking Spearman 0.86 -> 0.97 | **Yes** (simulation) |
+| LR ranker w/ one cross feature (P2) | Recall@20 -8%, NDCG -13% | **No -- hurt** |
+| Streaming freshness (P6) | +0.2%, not significant | **No -- flat** |
+| GRU4Rec sequence model (P10) | -15% vs co-visitation | **No -- lost to a simpler model** |
+
+**The shape of the curve is not monotonic.** Three of six sophistication upgrades
+did nothing or actively hurt on this dataset. That is not a failure of the repo --
+it is the finding:
+
+- **Retrieval is where modelling capacity paid off** (P1). Once you have a decent
+  candidate set, extra ranking/serving/freshness machinery bought *robustness,
+  correctness, and honesty* -- not accuracy (P2-P6).
+- **A strong baseline is hard to beat.** Popularity and co-visitation are brutal
+  baselines on a small, dense catalog; the LR ranker and GRU4Rec both lost to them
+  (P2, P10). "Simple" kept winning.
+- **The regime decides.** These are KuaiRand results: dense feedback, ~7.5k items.
+  On a sparse e-commerce log the same complexity often pays much more -- which is
+  exactly why you *measure on your data* instead of trusting the ladder.
+- **The real gains in Part II came from causality, not model size** (P8, P9, P11):
+  fixing *what you optimize and how you evaluate* beat making the model fancier.
+
+One-line takeaway: **complexity is a cost you pay up front for a benefit you must
+measure -- often that benefit is robustness or honesty, not a higher accuracy
+number, and sometimes it is negative.** Earn every layer (Rules 4, 14).
+
+---
+
 ## Reproducing these numbers
 
 Every number is produced by a `run.py` on real KuaiRand-Pure (seed 42, 80/20

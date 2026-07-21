@@ -162,7 +162,7 @@ Inspect Phase 1 training runs with `mlflow ui --port 5000`.
 ## Running the tests
 
 ```bash
-pytest tests/ -q     # 104 tests, tiny in-memory data, no dataset download required
+pytest tests/ -q     # 126 tests, tiny in-memory data, no dataset download required
 ```
 
 CI runs the same suite on every push and pull request.
@@ -203,5 +203,23 @@ CI runs the same suite on every push and pull request.
 - [x] Phase 9 -- off-policy learning (train a policy on unbiased data; +87% true value)
 - [x] Phase 11 -- position-bias debiasing (IPW + result-randomization propensities)
 
-All phases are implemented, tested, and run on real KuaiRand-Pure data. See the
-[learning walkthroughs](#learning-walkthroughs-start-here).
+**Not yet built (forward-looking backlog, in priority order):**
+
+- [ ] **Two-stage integration** -- wire two-tower retrieval (P1) -> LR/GRU ranker
+  (P2/P10) -> policy layer (P3) into ONE pipeline. Today Phase 3 still serves the
+  *popularity* candidate generator; the learned retrieval is never plugged into the
+  live service. This is the biggest gap and the one most likely to move the numbers.
+- [ ] **Explore-and-learn loop** -- an online bandit (epsilon-greedy / Thompson) that
+  unifies Phase 9 (off-policy learning) and Phase 11 (debiasing): mint unbiased data
+  in production, then learn on it. Closes the loop Part II only simulated.
+- [ ] **SASRec (self-attention) + negative sampling** -- a stronger sequence model on
+  Phase 10's exact protocol, to see whether attention closes the gap to co-visitation.
+- [ ] **Contextual off-policy eval/learning** -- per-user policies instead of the
+  context-free demo in Phases 8-9.
+- [ ] **Joint PBM/DLA via EM** -- estimate examination and relevance together on
+  position-carrying logs, and feed IPW-weighted labels into the Phase 2 ranker.
+
+All implemented phases are tested and run on real KuaiRand-Pure data. See the
+[learning walkthroughs](#learning-walkthroughs-start-here). For an honest look at
+which additions actually paid off, see
+[`docs/results.md` -> "Does complexity pay?"](docs/results.md).
