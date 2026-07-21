@@ -92,11 +92,16 @@
       <div style="height:260px"><canvas id="chartL"></canvas></div>
       <p class="text-sm text-slate-500 mt-3">Mean cumulative regret on a world where the best arm depends on the user. Context-free Thompson is structurally stuck; LinUCB personalizes and its regret nearly flatlines (92% lower). Exploration composes with context.</p>
     </section>
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Group M - Closing the loop: explore -> learn -> redeploy (Phase 16, capstone)</h2>
+      <div style="height:260px"><canvas id="chartM"></canvas></div>
+      <p class="text-sm text-slate-500 mt-3">TRUE deployed value per redeploy iteration. Exploring loops climb toward the skyline (dashed); the no-exploration trap stalls low. Exploration sets the ceiling; IPS is a near-wash with a well-specified model.</p>
+    </section>
 
     <footer class="text-center text-sm text-slate-500 pt-4">
       Part I (Phases 0-7, +10, 12-13): build a recommender with production discipline.
-      Part II (Phases 8-9, 11, 14-15): prove the metric was biased, fix the learning,
-      debias positions, and explore (globally then per-user) to mint unbiased data.
+      Part II (Phases 8-9, 11, 14-16): prove the metric was biased, fix the learning,
+      debias positions, explore (globally, per-user), and close the off-policy loop.
     </footer>
   </div>
   <script>
@@ -256,6 +261,27 @@
           options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } },
             scales: { x: { title: { display: true, text: 'round' } },
                        y: { title: { display: true, text: 'cumulative regret' } } } }
+        });
+        new Chart(document.getElementById('chartM'), {
+          type: 'line',
+          data: {
+            labels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            datasets: [
+              { label: 'Skyline (oracle)', borderColor: '#111827', borderDash: [6,4],
+                 backgroundColor: '#111827', data: [0.9311, 0.9311, 0.9311, 0.9311, 0.9311, 0.9311, 0.9311, 0.9311, 0.9311, 0.9311, 0.9311, 0.9311, 0.9311, 0.9311, 0.9311], pointRadius: 0, borderWidth: 1 },
+              { label: 'Closed loop (explore+IPS)', borderColor: '#16a34a',
+                 backgroundColor: '#16a34a', data: [0.662, 0.8213, 0.8581, 0.8704, 0.8816, 0.888, 0.8958, 0.8993, 0.9041, 0.9081, 0.9083, 0.9103, 0.9126, 0.9142, 0.9149], pointRadius: 0, borderWidth: 2 },
+              { label: 'Explore, no IPS', borderColor: '#2563eb',
+                 backgroundColor: '#2563eb', data: [0.7782, 0.882, 0.9073, 0.9137, 0.9174, 0.92, 0.9219, 0.9223, 0.923, 0.9234, 0.9239, 0.9244, 0.9248, 0.9251, 0.9253], pointRadius: 0, borderWidth: 2 },
+              { label: 'No exploration (trap)', borderColor: '#dc2626',
+                 backgroundColor: '#dc2626', data: [0.57, 0.6317, 0.6827, 0.6901, 0.6917, 0.699, 0.7088, 0.7139, 0.7147, 0.7149, 0.715, 0.7149, 0.715, 0.715, 0.7151], pointRadius: 0, borderWidth: 2 },
+              { label: 'Uniform floor', borderColor: '#9ca3af', borderDash: [3,3],
+                 backgroundColor: '#9ca3af', data: [0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566], pointRadius: 0, borderWidth: 1 }
+            ]
+          },
+          options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } },
+            scales: { x: { title: { display: true, text: 'redeploy iteration' } },
+                       y: { title: { display: true, text: 'true deployed value' } } } }
         });
   </script>
 </body>

@@ -51,6 +51,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase11.md`](docs/phase11.md) -- **position-bias debiasing** (controlled sim): naive CTR ranks positions as much as items; IPW recovers the true ranking (Spearman 0.86 -> 0.97), with the examination curve learned from a randomization bucket.
 - [`docs/phase14.md`](docs/phase14.md) -- the **explore-and-learn loop** (bandit sim on real KuaiRand rates): where unbiased data comes from. Thompson sampling gets ~48% less regret than greedy and mints a full-support log; exploration is the online source of Part II's causal ground truth.
 - [`docs/phase15.md`](docs/phase15.md) -- the **contextual bandit** (LinUCB): personalized exploration. On a world where the best item depends on the user, LinUCB gets ~92% less regret than context-free Thompson -- context helps, and exploration still helps on top of context.
+- [`docs/phase16.md`](docs/phase16.md) -- **closing the loop** (capstone): explore -> learn off-policy -> redeploy. Exploration lifts the deployed policy's TRUE value from 41% to ~96% of the skyline; the no-exploration trap stalls. IPS is a near-wash with a well-specified model (Phase 11's bias-variance lesson, one last time).
 - [`docs/off-policy-evaluation.md`](docs/off-policy-evaluation.md) -- the deep dive on IPS / SNIPS / DM / DR and why known propensities matter.
 
 **Cross-cutting:**
@@ -92,6 +93,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 ├── phase13/                  # Two-tower score as a ranking feature (stage-2 fix)
 ├── phase14/                  # Explore-and-learn bandit loop -- Part II
 ├── phase15/                  # Contextual bandit (LinUCB) -- Part II
+├── phase16/                  # Closing the loop: explore->learn->redeploy (capstone)
 ├── scripts/                  # build_results.py + build_report.py (scoreboard/report generators)
 ├── run_all.py                # run every phase end-to-end, then rebuild docs
 ├── tests/                    # pytest suite (tiny in-memory frames, no CSVs needed)
@@ -158,6 +160,7 @@ cd phase12 && python run.py  # two-stage retrieve+rank: honest -- loses to two-t
 cd phase13 && python run.py  # + two-tower score as a feature: two-stage now WINS (+3.3%)
 cd phase14 && python run.py  # PART II -- bandit loop: Thompson -48% regret + full-support log
 cd phase15 && python run.py  # PART II -- contextual bandit (LinUCB): -92% regret, personalized
+cd phase16 && python run.py  # PART II -- CAPSTONE: closed loop, exploration 41% -> 96% of skyline
 cd phase8 && python run.py   # PART II -- OPE: naive metric +100% biased vs SNIPS 0.6%
 cd phase9 && python run.py   # PART II -- OPL: policy learned on unbiased data +87% true value
 ```
@@ -218,13 +221,13 @@ CI runs the same suite on every push and pull request.
 - [x] Phase 11 -- position-bias debiasing (IPW + result-randomization propensities)
 - [x] Phase 14 -- explore-and-learn bandit loop (greedy vs epsilon-greedy vs Thompson; exploration mints unbiased data)
 - [x] Phase 15 -- contextual bandit (LinUCB): personalized exploration, -92% regret vs context-free
+- [x] Phase 16 -- closing the loop (capstone): explore -> learn off-policy -> redeploy; exploration 41% -> 96% of skyline
 
 **Not yet built (forward-looking backlog, in priority order):**
 
-- [ ] **Close the loop end-to-end** -- feed LinUCB's (Phase 15) exploration log into
-  Phase 9's off-policy learning, learn a better policy off-policy, redeploy: the full
-  explore-online -> learn-off-policy -> deploy -> repeat cycle. Use the two-tower user
-  vector (Phase 1) as the real context x.
+- [ ] **Real context in the loop** -- use the two-tower user vector (Phase 1) as the
+  LinUCB/loop context x, and gate every redeploy behind Phase 4 monitoring + a
+  min-propensity floor so a bad iteration can never ship.
 - [ ] **SASRec sequence model** -- self-attention on Phase 10's exact protocol; see
   Phase 10's exact protocol, to see whether attention closes the gap to co-visitation.
 - [ ] **Contextual off-policy eval/learning** -- per-user policies instead of the

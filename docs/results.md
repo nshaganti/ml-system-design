@@ -345,6 +345,38 @@ See [`phase15.md`](phase15.md).
 
 ---
 
+## Group M -- Closing the loop: explore -> learn off-policy -> redeploy (Phase 16)
+
+*The capstone. Comparable within the group -- three loop variants + skyline/floor on
+the same contextual world (real KuaiRand base rates), averaged over 15 worlds x 15
+redeploy iterations.* Grades each variant by the TRUE value of the policy it
+actually deploys.
+
+<!-- AUTOGEN:groupM -->
+| Policy | True deployed value | % of skyline gap closed |
+|---|---|---|
+| Uniform floor | 0.5660 | 0% |
+| No exploration (trap) | 0.7151 | 41% |
+| Explore, no IPS | 0.9253 | 98% |
+| Closed loop (explore+IPS) | 0.9149 | 96% |
+| Skyline (oracle) | 0.9311 | 100% |
+<!-- /AUTOGEN:groupM -->
+
+**Verdict:** the loop works, and it names the one ingredient that matters most.
+**Exploration is the hero**: a loop that learns once from greedy logs stalls at 41%
+of the floor->skyline gap -- it never gathers evidence on the arms it dismissed, so
+its models (and its ceiling) freeze. Turning on exploration lifts the deployed value
+to **96-98%** of the skyline, iteration after iteration. The honest wrinkle: **IPS
+barely moved the needle here** (96% with vs 98% without). With a well-specified
+*linear* per-arm reward model, plain regression is already unbiased on a skewed
+context distribution, so IPS only added variance -- Phase 11's bias-variance tradeoff,
+one last time. Propensities earn their keep when the model is misspecified or you
+estimate policy *value* directly (Phase 8), not when a correctly-specified model just
+needs coverage. **Explore for coverage, learn off-policy, redeploy -- that is the
+engine the whole course was building toward.** See [`phase16.md`](phase16.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -365,6 +397,7 @@ See [`phase15.md`](phase15.md).
 | 13 Score-as-feature | **the right stage-2 signal** | +tt_score two-stage BEATS two-tower alone (+3.3%) | **up** |
 | 14 Explore-and-learn | **unbiased data at the source** | Thompson -48% regret, 98% finds best, full support | up (regret + data quality) |
 | 15 Contextual bandit | **personalized exploration** (LinUCB) | -92% regret vs context-free, 62% per-user-best | **up** |
+| 16 Closing the loop | **the full cycle** (explore->learn->redeploy) | exploration 41% -> 96% of skyline; IPS a wash | **up** |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline

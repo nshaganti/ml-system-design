@@ -45,7 +45,7 @@ def _chart(canvas_id: str, height: int = 260) -> str:
 
 
 def build() -> str:
-    p = {n: load(n) for n in range(16)}
+    p = {n: load(n) for n in range(17)}
     charts_js: list[str] = []
     cards: list[str] = []
 
@@ -324,6 +324,43 @@ def build() -> str:
                        y: {{ title: {{ display: true, text: 'cumulative regret' }} }} }} }}
         }});""")
 
+    # --- Group M: closing the loop (Phase 16, capstone) ----------------
+    if p[16]:
+        cards.append(_card(
+            "Group M - Closing the loop: explore -> learn -> redeploy (Phase 16, capstone)",
+            _chart("chartM"),
+            "TRUE deployed value per redeploy iteration. Exploring loops climb toward "
+            "the skyline (dashed); the no-exploration trap stalls low. Exploration sets "
+            "the ceiling; IPS is a near-wash with a well-specified model.",
+        ))
+        it = p[16]["_iterations"]
+        sky = p[16]["skyline"]
+        flr = p[16]["uniform"]
+        tr = {k: p[16][k]["trajectory"] for k in ("no_explore", "explore_no_ips", "closed_loop")}
+        n_it = len(it)
+        charts_js.append(f"""
+        new Chart(document.getElementById('chartM'), {{
+          type: 'line',
+          data: {{
+            labels: {[int(x) for x in it]},
+            datasets: [
+              {{ label: 'Skyline (oracle)', borderColor: '#111827', borderDash: [6,4],
+                 backgroundColor: '#111827', data: {[round(sky,4)]*n_it}, pointRadius: 0, borderWidth: 1 }},
+              {{ label: 'Closed loop (explore+IPS)', borderColor: '#16a34a',
+                 backgroundColor: '#16a34a', data: {tr['closed_loop']}, pointRadius: 0, borderWidth: 2 }},
+              {{ label: 'Explore, no IPS', borderColor: '#2563eb',
+                 backgroundColor: '#2563eb', data: {tr['explore_no_ips']}, pointRadius: 0, borderWidth: 2 }},
+              {{ label: 'No exploration (trap)', borderColor: '#dc2626',
+                 backgroundColor: '#dc2626', data: {tr['no_explore']}, pointRadius: 0, borderWidth: 2 }},
+              {{ label: 'Uniform floor', borderColor: '#9ca3af', borderDash: [3,3],
+                 backgroundColor: '#9ca3af', data: {[round(flr,4)]*n_it}, pointRadius: 0, borderWidth: 1 }}
+            ]
+          }},
+          options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }},
+            scales: {{ x: {{ title: {{ display: true, text: 'redeploy iteration' }} }},
+                       y: {{ title: {{ display: true, text: 'true deployed value' }} }} }} }}
+        }});""")
+
     # --- serving + gate summary tiles (Phase 3, 4) ----------------------
     tiles = []
     if p[3]:
@@ -381,8 +418,8 @@ def build() -> str:
 
     <footer class="text-center text-sm text-slate-500 pt-4">
       Part I (Phases 0-7, +10, 12-13): build a recommender with production discipline.
-      Part II (Phases 8-9, 11, 14-15): prove the metric was biased, fix the learning,
-      debias positions, and explore (globally then per-user) to mint unbiased data.
+      Part II (Phases 8-9, 11, 14-16): prove the metric was biased, fix the learning,
+      debias positions, explore (globally, per-user), and close the off-policy loop.
     </footer>
   </div>
   <script>

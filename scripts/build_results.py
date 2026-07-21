@@ -254,10 +254,24 @@ def group_l(p15: dict) -> str:
     return "\n".join(out)
 
 
+def group_m(p16: dict) -> str:
+    rows = [
+        ("Uniform floor", p16["uniform"], 0.0),
+        ("No exploration (trap)", p16["no_explore"]["final_value"], p16["no_explore"]["gap_closed"]),
+        ("Explore, no IPS", p16["explore_no_ips"]["final_value"], p16["explore_no_ips"]["gap_closed"]),
+        ("Closed loop (explore+IPS)", p16["closed_loop"]["final_value"], p16["closed_loop"]["gap_closed"]),
+        ("Skyline (oracle)", p16["skyline"], 1.0),
+    ]
+    out = ["| Policy | True deployed value | % of skyline gap closed |", "|---|---|---|"]
+    for label, val, gap in rows:
+        out.append(f"| {label} | {val:.4f} | {gap*100:.0f}% |")
+    return "\n".join(out)
+
+
 # --------------------------------------------------------------- main
 
 def build(text: str) -> str:
-    p = {n: load(n) for n in range(16)}
+    p = {n: load(n) for n in range(17)}
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -282,6 +296,8 @@ def build(text: str) -> str:
         text = replace_block(text, "groupK", group_k(p[14]))
     if p[15]:
         text = replace_block(text, "groupL", group_l(p[15]))
+    if p[16]:
+        text = replace_block(text, "groupM", group_m(p[16]))
     return text
 
 
