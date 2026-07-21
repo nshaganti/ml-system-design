@@ -13,7 +13,8 @@
 3. [Phase 1: Two-Tower Model](#3-phase-1-two-tower-model)
 4. [Real-World Pitfalls](#4-real-world-pitfalls)
 5. [Results & Honest Interpretation](#5-results--honest-interpretation)
-6. [Google's Rules of ML Applied](#6-googles-rules-of-ml-applied)
+6. [Part II: Causality, Exploration & the Closed Loop](#6-part-ii-causality-exploration--the-closed-loop)
+7. [Google's Rules of ML Applied](#7-googles-rules-of-ml-applied)
 
 ---
 
@@ -672,7 +673,68 @@ signal. See [`docs/phase2.md`](docs/phase2.md).
 
 ---
 
-## 6. Google's Rules of ML Applied
+## 6. Part II: Causality, Exploration & the Closed Loop
+
+Part I built a disciplined recommender and measured it honestly. Part II asks the
+harder question: *were those measurements even real?* The logs were written by the
+incumbent policy, so both evaluation and learning built on them are biased. These are
+the decisions and pitfalls of fixing that. (Deep dives per phase in `docs/`.)
+
+### Does complexity pay? The honest, non-monotonic curve
+
+The single most important Part II finding is that **added complexity did NOT reliably
+add accuracy** -- the payoff curve is non-monotonic. Sorted by honest outcome:
+
+| Addition | Outcome |
+|---|---|
+| Two-tower over heuristic (P1) | **+84%** recall -- big win (dense-data regime) |
+| Co-visitation over popularity (P7) | **+61%** -- real, modest win |
+| Two-tower score as a ranking feature (P13) | **+3.3%** -- two-stage finally earns it |
+| IPS/SNIPS off-policy eval (P8) | recovers truth to **0.6% error** (from +100% biased) |
+| Position debiasing (P11) | Spearman **0.86 -> 0.97** |
+| Category cross feature in ranker (P2) | **-13%** NDCG -- hurt |
+| Near-realtime freshness (P6) | **flat** -- no measurable gain here |
+| GRU4Rec sequence model (P10) | **-15%** vs co-visitation -- lost |
+| Naive two-stage integration (P12) | **-18.7%** vs two-tower alone -- lost |
+
+Part II's real gains came from **causality and exploration, not model size**. The
+engineering skill is telling which is which *on your data* -- see
+[`docs/results.md`](docs/results.md) for the full scoreboard.
+
+### Pitfall 8: The feedback loop / greedy trap (Phases 8, 14, 16)
+
+A policy that only ever shows what it currently believes is best manufactures its own
+selection bias: it never gathers evidence on the items it dismissed, so its models
+(and its ceiling) freeze. In Phase 16 a no-exploration loop stalled at **41%** of the
+floor->skyline gap while exploring loops reached **~96%**. **Exploration is the price
+of unbiased data, and it is not optional** -- it's the online source of everything
+Phases 8/9/11 assumed they had. Thompson/LinUCB explore in proportion to uncertainty
+(cheap); uniform epsilon-greedy explores wastefully. See
+[`docs/phase14.md`](docs/phase14.md), [`docs/phase16.md`](docs/phase16.md).
+
+### Pitfall 9: Treating IPS as a magic wand (Phases 11, 16)
+
+Inverse-propensity weighting is **unbiased but high-variance**, and it is
+*situational*. In Phase 16, with a well-specified linear reward model, plain
+regression was already unbiased on a skewed context distribution -- so IPS only
+**added variance** and was a near-wash (96% vs 98%). Propensities earn their keep
+when the model is misspecified or when you estimate a policy's **value directly**
+(Phase 8's OPE), not as a reflex. Diagnosing which correction the failure calls for
+is the difference between citing techniques and engineering. See
+[`docs/phase11.md`](docs/phase11.md), [`docs/off-policy-evaluation.md`](docs/off-policy-evaluation.md).
+
+### A recommender is a loop, not a model (Phase 16 capstone)
+
+The capstone wires it together: **deploy -> explore + log (context, action,
+propensity, reward) -> learn off-policy -> redeploy.** The model is one step; value is
+created or destroyed by how the loop gathers and corrects its own data. Grade the
+policy you *ship* by its true value, not the reward your logs happened to record.
+Every redeploy should be gated by the Phase 4 monitoring + a min-propensity floor so
+a bad iteration can never ship. See [`docs/phase16.md`](docs/phase16.md).
+
+---
+
+## 7. Google's Rules of ML Applied
 
 | Decision | Rule | How it applied |
 |---|---|---|
@@ -715,6 +777,17 @@ signal. See [`docs/phase2.md`](docs/phase2.md).
 5. **Evaluation interfaces must be stable.** The `catalog_size` bug would have been invisible until we tested Phase 1. Stable interfaces across model versions make comparison reliable.
 
 6. **Two-stage systems need two-stage evaluation.** Evaluating candidate generation on a ranking metric (Recall@20) is like evaluating a search index on whether the top-1 result is correct. The right metric for retrieval is Recall@K where K is your candidate set size.
+
+7. **Your logs are not ground truth -- they're a policy's opinion.** Offline metrics
+   built on incumbent-policy logs can be a factor of two wrong (Phase 8). The only
+   unconfounded truth lives in a random/exploration log; propensities are how you
+   borrow from it.
+
+8. **Exploration sets the ceiling; corrections are situational.** No amount of
+   clever offline learning beats the trap of never gathering evidence on your
+   alternatives. And use the right tool for the failure -- propensities fix
+   confounding and direct value estimation; a well-specified model just needs
+   coverage (Phases 14-16).
 
 ---
 

@@ -519,7 +519,36 @@ which items co-occur within a session, recommend the neighbors of the last item)
 
 ---
 
-## Part II -- Phase 8: Off-Policy Evaluation (Rules 23, 30, 36)
+## Part I (continued): Sequence Model & Two-Stage Ranking (Phases 10, 12-13)
+
+Three phases that finish the Part I recommender -- and each one is an honest lesson
+in *earning* complexity.
+
+- **Phase 10 -- GRU4Rec sequence model.** Before assuming attention/recurrence beats
+  a count-based baseline, measure it on the *same* leave-one-out protocol as Phase 7.
+  Honest result: GRU4Rec **underperformed co-visitation (-15%)** on KuaiRand's small
+  catalog -- a neural sequence model is not automatically better than a brutally
+  strong count-based one. Full walkthrough: [`docs/phase10.md`](docs/phase10.md).
+- **Phase 12 -- Two-stage integration.** Compose the Phase 1 two-tower retriever
+  (stage 1) with the Phase 2 LR ranker (stage 2) behind one `.recommend()`. Honest
+  result: the naive two-stage pipeline **lost to two-tower alone (-18.7%)** because
+  popularity-flavored LR features undid the retriever's personalization. Two stages
+  aren't automatically better than one. Full walkthrough: [`docs/phase12.md`](docs/phase12.md).
+- **Phase 13 -- Two-tower score as a ranking feature.** Feed the retriever's own
+  score into stage 2 as a feature. Now the two-stage pipeline **beats two-tower
+  alone (+3.3%)**: stage 2 earns its place only once it can *see what stage 1 knows*.
+  Full walkthrough: [`docs/phase13.md`](docs/phase13.md).
+
+---
+
+## Part II -- Causality, Exploration & the Closed Loop (Phases 8-16)
+
+Part I graded and trained models by *replaying logged data*. Part II is the reckoning:
+those logs were written by the incumbent policy, so both the *evaluation* and the
+*learning* built on them are biased -- and the fix is to treat data collection as a
+causal, closed-loop problem, not a static dataset.
+
+### Phase 8 -- Off-Policy Evaluation (Rules 23, 30, 36)
 
 Everything in Part I graded models by *replaying the logged data*. But those logs
 were written by the incumbent policy -- it only ever showed items it liked, to
@@ -537,6 +566,46 @@ is the key that unlocks honest evaluation.
 > Part I's discipline, the offline number underneath it can be a factor of two
 > wrong. Full walkthroughs: [`docs/phase8.md`](docs/phase8.md) and
 > [`docs/off-policy-evaluation.md`](docs/off-policy-evaluation.md).
+
+### Phase 9 -- Off-Policy LEARNING
+
+The bias isn't only in *measurement*: Part I's policy was also *trained* on
+confounded logs, so it's genuinely suboptimal, not just mis-measured. Learn the
+policy from the unbiased random log instead -- and **a little unbiased data beats a
+lot of biased data** (a small exploration log trains a better policy than the huge
+production log). Full walkthrough: [`docs/phase9.md`](docs/phase9.md).
+
+### Phase 11 -- Position-Bias Debiasing (controlled simulation)
+
+Naive CTR ranks *positions* as much as it ranks items -- click = relevance x
+examination. Inverse-propensity weighting on an examination curve (learned from a
+result-randomization bucket) recovers the true item ranking (**Spearman 0.86 ->
+0.97**). The core Part II tradeoff shows up here: IPW is unbiased but higher
+variance. Full walkthrough: [`docs/phase11.md`](docs/phase11.md).
+
+### Phase 14 -- The Explore-and-Learn Loop
+
+Where does the unbiased data Phases 8/9/11 assumed actually come from in a live
+system? **Exploration.** A greedy (exploit-only) policy manufactures the Phase 8
+selection bias in real time; **Thompson sampling gets ~48% less regret than greedy
+and mints a full-support log** that off-policy methods can actually use. Full
+walkthrough: [`docs/phase14.md`](docs/phase14.md).
+
+### Phase 15 -- The Contextual Bandit (LinUCB)
+
+The best item depends on *who* is asking. LinUCB conditions its choice and its
+exploration on a user-context vector: on a world where the best arm flips per user
+it gets **~92% less regret than context-free Thompson**. Context helps, and
+exploration still helps on top of context. Full walkthrough: [`docs/phase15.md`](docs/phase15.md).
+
+### Phase 16 -- Closing the Loop (capstone)
+
+Wires the whole course into the cycle a recommender runs forever: **deploy -> explore
++ log -> learn off-policy -> redeploy**. Exploration lifts the deployed policy's TRUE
+value from **41% to ~96% of the skyline**; the no-exploration variant stalls. Honest
+wrinkle: with a well-specified linear model, IPS was a near-wash (it only added
+variance) -- propensities earn their keep under misspecification or direct value
+estimation, not everywhere. Full walkthrough: [`docs/phase16.md`](docs/phase16.md).
 
 ---
 
@@ -580,7 +649,18 @@ is the key that unlocks honest evaluation.
 |  Great Expectations (data quality)                               |
 |  Evidently AI (drift detection)                                  |
 |  Grafana + ClickHouse (business metrics, real-time)             |
-+------------------------------------------------------------------+
++-----------------------------+------------------------------------+
+                              |
++-----------------------------v------------------------------------+
+|            EXPLORE / OFF-POLICY LOOP  (Part II, Phases 14-16)     |
+|                                                                  |
+|  Serving policy EXPLORES (epsilon-soft / Thompson / LinUCB) and   |
+|  logs (context, action, propensity, reward)  -- unbiased data.    |
+|  Off-policy LEARNING (IPS/DR, Phases 8-9) trains a better policy  |
+|  --> gated by monitoring + min-propensity floor --> REDEPLOY -----+--+
++------------------------------------------------------------------+  |
+     ^  (redeploy closes the loop back into the training pipeline)    |
+     +----------------------------------------------------------------+
 ```
 
 ---
@@ -633,6 +713,7 @@ These are the things you never had to care about in a notebook:
 | Month 2 | Feature store (Feast) + streaming features (Flink + Redis) | Eliminate training-serving skew |
 | Month 3 | Data monitoring (Great Expectations + Evidently) + A/B framework (GrowthBook) | Detect silent failures; safe iteration |
 | Month 4+ | Upgrade ranker to XGBoost, then DNN if XGBoost plateaus | Only if you have >100M training examples |
+| Part II | Off-policy eval/learning (Phase 8-9), position debiasing (Phase 11), then an explore-and-learn loop (Phases 14-16) | Fix biased metrics/learning; make data collection a closed causal loop |
 
 The model upgrades in Month 4+ are optional and depend on observed ceiling. The infrastructure in Months 1-3 is not optional -- every production ML system needs it.
 
