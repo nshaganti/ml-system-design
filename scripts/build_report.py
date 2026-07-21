@@ -45,7 +45,7 @@ def _chart(canvas_id: str, height: int = 260) -> str:
 
 
 def build() -> str:
-    p = {n: load(n) for n in range(12)}
+    p = {n: load(n) for n in range(13)}
     charts_js: list[str] = []
     cards: list[str] = []
 
@@ -208,6 +208,33 @@ def build() -> str:
           }},
           options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }},
             scales: {{ y: {{ min: 0, max: 1 }} }} }}
+        }});""")
+
+    # --- Group I: two-stage integration (Phase 12) ---------------------
+    if p[12]:
+        cards.append(_card(
+            "Group I - Two-stage integration: retrieve + rank (Phase 12)",
+            _chart("chartI"),
+            "Honest architecture result: two-tower -> LR rerank LOSES to two-tower "
+            "alone (popularity-flavored ranker undoes personalization) but beats "
+            "popularity -> LR. A pipeline is only as good as the signal stage 2 adds.",
+        ))
+        tt, pl_, ts = p[12]["two_tower"], p[12]["pop_lr"], p[12]["two_stage"]
+        charts_js.append(f"""
+        new Chart(document.getElementById('chartI'), {{
+          type: 'bar',
+          data: {{
+            labels: ['Recall@20', 'NDCG@20', 'Coverage'],
+            datasets: [
+              {{ label: 'Two-tower alone', backgroundColor: '#16a34a',
+                 data: [{tt['recall']:.4f}, {tt['ndcg']:.4f}, {tt['coverage']:.4f}] }},
+              {{ label: 'Popularity -> LR', backgroundColor: '#94a3b8',
+                 data: [{pl_['recall']:.4f}, {pl_['ndcg']:.4f}, {pl_['coverage']:.4f}] }},
+              {{ label: 'Two-tower -> LR', backgroundColor: '#2563eb',
+                 data: [{ts['recall']:.4f}, {ts['ndcg']:.4f}, {ts['coverage']:.4f}] }}
+            ]
+          }},
+          options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }} }}
         }});""")
 
     # --- serving + gate summary tiles (Phase 3, 4) ----------------------

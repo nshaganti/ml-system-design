@@ -235,6 +235,34 @@ matter in practice. See [`phase11.md`](phase11.md).
 
 ---
 
+## Group I -- Two-stage integration: does retrieval + ranking beat one stage? (Phase 12)
+
+*Comparable within the group only -- three rankers, same users, same temporal split,
+same `recall_at_k` harness.* This is the first phase that WIRES earlier pieces
+together: two-tower retrieval (P1) feeding the LR ranker (P2), versus each stage on
+its own.
+
+<!-- AUTOGEN:groupI -->
+| Ranker | Recall@20 | NDCG@20 | Coverage |
+|---|---|---|---|
+| Two-tower alone (P1) | **0.1215** | **0.0843** | **0.1564** |
+| Popularity -> LR (P2) | 0.0590 | 0.0372 | 0.0499 |
+| Two-tower -> LR (P12) | 0.0988 | 0.0697 | 0.0789 |
+<!-- /AUTOGEN:groupI -->
+
+**Verdict:** the architecture textbooks draw -- retrieve then rerank -- **loses to
+two-tower retrieval alone** here (-18.7% recall, -17% NDCG, half the coverage). Yet
+the *same* two-stage system beats popularity->LR by +67% recall, so stage 1
+absolutely matters. The lesson is about stage 2: the LR's features
+(`item_pop`, `user_pop`, `user_cat_affinity`) are popularity-flavored, so reranking
+pushes popular items up and *undoes* the two-tower's personalization and long-tail
+coverage. **A two-stage system is only as good as the signal its ranker adds** --
+architecture alone buys nothing (Rules 4, 14). Fix: give stage 2 features it can
+actually rank with (the two-tower similarity score itself, recency, affinities).
+See [`phase12.md`](phase12.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -251,6 +279,7 @@ matter in practice. See [`phase11.md`](phase11.md).
 | 9 Off-policy learning | **causal learning** | unbiased-learned policy +87% true value | up (true value) |
 | 10 Sequence model | **order modelling** (GRU4Rec) | beats popularity, LOSES to co-vis by ~15% | up vs pop, down vs covis |
 | 11 Position debiasing | **causal labels** (IPW) | recovered ranking Spearman 0.86 -> 0.97 | up (ranking quality) |
+| 12 Two-stage integration | **architecture** (retrieve->rank) | two-stage LOSES to two-tower alone (-19%) | down (weak stage-2 signal) |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline
@@ -273,6 +302,7 @@ needle -- and remembering that only within-group numbers are comparable:
 | LR ranker w/ one cross feature (P2) | Recall@20 -8%, NDCG -13% | **No -- hurt** |
 | Streaming freshness (P6) | +0.2%, not significant | **No -- flat** |
 | GRU4Rec sequence model (P10) | -15% vs co-visitation | **No -- lost to a simpler model** |
+| Two-stage retrieve->rank (P12) | -19% vs two-tower alone | **No -- weak stage-2 undid stage-1** |
 
 **The shape of the curve is not monotonic.** Three of six sophistication upgrades
 did nothing or actively hurt on this dataset. That is not a failure of the repo --
