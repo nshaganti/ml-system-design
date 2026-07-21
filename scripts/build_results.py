@@ -236,10 +236,28 @@ def group_k(p14: dict) -> str:
     return "\n".join(out)
 
 
+def group_l(p15: dict) -> str:
+    rows = [
+        ("Context-free Thompson", p15["thompson"]),
+        ("LinUCB (alpha=0, greedy)", p15["linucb_greedy"]),
+        ("LinUCB (alpha=1)", p15["linucb"]),
+    ]
+    best_regret = min(rows, key=lambda r: r[1]["final_regret"])[0]
+    best_pick = max(rows, key=lambda r: r[1]["best_arm_pct"])[0]
+    out = ["| Policy | Mean regret | Per-user-best % |", "|---|---|---|"]
+    for label, m in rows:
+        reg = f"{m['final_regret']:.0f}"
+        reg = f"**{reg}**" if label == best_regret else reg
+        pick = f"{m['best_arm_pct']*100:.0f}%"
+        pick = f"**{pick}**" if label == best_pick else pick
+        out.append(f"| {label} | {reg} | {pick} |")
+    return "\n".join(out)
+
+
 # --------------------------------------------------------------- main
 
 def build(text: str) -> str:
-    p = {n: load(n) for n in range(15)}
+    p = {n: load(n) for n in range(16)}
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -262,6 +280,8 @@ def build(text: str) -> str:
         text = replace_block(text, "groupJ", group_j(p[13]))
     if p[14]:
         text = replace_block(text, "groupK", group_k(p[14]))
+    if p[15]:
+        text = replace_block(text, "groupL", group_l(p[15]))
     return text
 
 

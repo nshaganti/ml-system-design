@@ -317,6 +317,34 @@ is not optional.** See [`phase14.md`](phase14.md).
 
 ---
 
+## Group L -- The contextual bandit: personalized exploration (Phase 15)
+
+*Comparable within the group only -- three policies, same contextual world (each
+arm's base rate is a REAL KuaiRand per-item rate; the context-dependent part is
+synthetic), averaged over 25 worlds x 8k rounds.* Extends Phase 14 from "one best
+item for everyone" to "the best item depends on the user."
+
+<!-- AUTOGEN:groupL -->
+| Policy | Mean regret | Per-user-best % |
+|---|---|---|
+| Context-free Thompson | 2526 | 9% |
+| LinUCB (alpha=0, greedy) | 1580 | 25% |
+| LinUCB (alpha=1) | **203** | **62%** |
+<!-- /AUTOGEN:groupL -->
+
+**Verdict:** two lessons in one table. **Context helps** -- LinUCB even without an
+exploration bonus (greedy, 1580) beats context-free Thompson (2526), because a
+policy that ignores the user can only ever learn each arm's *average* rate and is
+structurally stuck on a world where the best arm flips per user. **And exploration
+still helps on top of context** -- adding the uncertainty bonus (alpha=1) crushes
+regret from 1580 to **203** and lifts per-user-best picks to 62%: the bonus finds
+good arms in under-seen contexts fast. Net, LinUCB gets **92% lower regret** than
+the Phase 14 champion and personalizes where it couldn't. This is Phase 14's lesson,
+now per-user, and the natural home for the two-tower user vector as the context x.
+See [`phase15.md`](phase15.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -336,6 +364,7 @@ is not optional.** See [`phase14.md`](phase14.md).
 | 12 Two-stage integration | **architecture** (retrieve->rank) | two-stage LOSES to two-tower alone (-19%) | down (weak stage-2 signal) |
 | 13 Score-as-feature | **the right stage-2 signal** | +tt_score two-stage BEATS two-tower alone (+3.3%) | **up** |
 | 14 Explore-and-learn | **unbiased data at the source** | Thompson -48% regret, 98% finds best, full support | up (regret + data quality) |
+| 15 Contextual bandit | **personalized exploration** (LinUCB) | -92% regret vs context-free, 62% per-user-best | **up** |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline

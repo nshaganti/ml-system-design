@@ -45,7 +45,7 @@ def _chart(canvas_id: str, height: int = 260) -> str:
 
 
 def build() -> str:
-    p = {n: load(n) for n in range(15)}
+    p = {n: load(n) for n in range(16)}
     charts_js: list[str] = []
     cards: list[str] = []
 
@@ -294,6 +294,36 @@ def build() -> str:
                        y: {{ title: {{ display: true, text: 'cumulative regret' }} }} }} }}
         }});""")
 
+    # --- Group L: contextual bandit (Phase 15) -------------------------
+    if p[15]:
+        cards.append(_card(
+            "Group L - Contextual bandit: personalized exploration (Phase 15)",
+            _chart("chartL"),
+            "Mean cumulative regret on a world where the best arm depends on the user. "
+            "Context-free Thompson is structurally stuck; LinUCB personalizes and its "
+            "regret nearly flatlines (92% lower). Exploration composes with context.",
+        ))
+        cx = p[15]["_curve_x"]
+        cv = p[15]["_regret_curves"]
+        charts_js.append(f"""
+        new Chart(document.getElementById('chartL'), {{
+          type: 'line',
+          data: {{
+            labels: {[int(x) for x in cx]},
+            datasets: [
+              {{ label: 'Context-free Thompson', borderColor: '#dc2626', backgroundColor: '#dc2626',
+                 data: {cv['thompson']}, pointRadius: 0, borderWidth: 2 }},
+              {{ label: 'LinUCB (greedy)', borderColor: '#f59e0b', backgroundColor: '#f59e0b',
+                 data: {cv['linucb_greedy']}, pointRadius: 0, borderWidth: 2 }},
+              {{ label: 'LinUCB (alpha=1)', borderColor: '#16a34a', backgroundColor: '#16a34a',
+                 data: {cv['linucb']}, pointRadius: 0, borderWidth: 2 }}
+            ]
+          }},
+          options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }},
+            scales: {{ x: {{ title: {{ display: true, text: 'round' }} }},
+                       y: {{ title: {{ display: true, text: 'cumulative regret' }} }} }} }}
+        }});""")
+
     # --- serving + gate summary tiles (Phase 3, 4) ----------------------
     tiles = []
     if p[3]:
@@ -351,8 +381,8 @@ def build() -> str:
 
     <footer class="text-center text-sm text-slate-500 pt-4">
       Part I (Phases 0-7, +10, 12-13): build a recommender with production discipline.
-      Part II (Phases 8-9, 11, 14): prove the metric was biased, fix the learning,
-      debias positions, and explore to mint unbiased data at the source.
+      Part II (Phases 8-9, 11, 14-15): prove the metric was biased, fix the learning,
+      debias positions, and explore (globally then per-user) to mint unbiased data.
     </footer>
   </div>
   <script>
