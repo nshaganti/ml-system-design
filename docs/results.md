@@ -289,6 +289,34 @@ stages beat one only once stage 2 can see what stage 1 knows.** See
 
 ---
 
+## Group K -- The explore-and-learn loop: where unbiased data comes from (Phase 14)
+
+*Comparable within the group only -- three bandit strategies, same 50 arms (whose
+true reward rates are REAL KuaiRand per-item engagement rates), averaged over 60
+seeded worlds x 50k rounds.* This closes Part II's loop: exploration is the ONLINE
+source of the unbiased data Phases 8/9/11 assumed.
+
+<!-- AUTOGEN:groupK -->
+| Strategy | Mean regret | Best-arm % | Log support | Found best % |
+|---|---|---|---|---|
+| Greedy (exploit only) | 1558 | 18% | 19% | 18% |
+| Epsilon-greedy | 1540 | 38% | **100%** | 53% |
+| Thompson sampling | **814** | **71%** | 100% | **98%** |
+<!-- /AUTOGEN:groupK -->
+
+**Verdict:** pure exploitation is a **high-variance gamble** (regret 1558 +/-1799):
+averaged over worlds it rarely finds the true best arm (18%) and its ongoing log has
+support on almost no arm (19%) -- literally the confounded log Phase 8 had to correct
+after the fact, manufactured live. Naive epsilon-greedy keeps full support but
+explores *wastefully* (uniform forever), so its regret barely improves. **Thompson
+sampling** explores in proportion to uncertainty: **~48% less regret than greedy**,
+tiny variance (+/-146), finds the best arm 98% of the time, and keeps full support.
+That support is the punchline -- an exploring policy MINTS the unbiased data that
+Phases 8-9-11 could only assume. **Exploration is the price of unbiased data, and it
+is not optional.** See [`phase14.md`](phase14.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -307,6 +335,7 @@ stages beat one only once stage 2 can see what stage 1 knows.** See
 | 11 Position debiasing | **causal labels** (IPW) | recovered ranking Spearman 0.86 -> 0.97 | up (ranking quality) |
 | 12 Two-stage integration | **architecture** (retrieve->rank) | two-stage LOSES to two-tower alone (-19%) | down (weak stage-2 signal) |
 | 13 Score-as-feature | **the right stage-2 signal** | +tt_score two-stage BEATS two-tower alone (+3.3%) | **up** |
+| 14 Explore-and-learn | **unbiased data at the source** | Thompson -48% regret, 98% finds best, full support | up (regret + data quality) |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline

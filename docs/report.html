@@ -82,10 +82,16 @@
       <div style="height:260px"><canvas id="chartJ"></canvas></div>
       <p class="text-sm text-slate-500 mt-3">The fix for Group I: feeding the retrieval score into the LR flips the -19% regression into a +3.3% win over two-tower alone. Two stages beat one only once stage 2 can see what stage 1 knows.</p>
     </section>
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Group K - Explore-and-learn: where unbiased data comes from (Phase 14)</h2>
+      <div style="height:260px"><canvas id="chartK"></canvas></div>
+      <p class="text-sm text-slate-500 mt-3">Mean cumulative regret over 50k rounds (60 seeded worlds). Thompson's curve FLATTENS (it converges and stops paying) while greedy/epsilon stay linear. Exploration is the online source of the unbiased data Part II needs.</p>
+    </section>
 
     <footer class="text-center text-sm text-slate-500 pt-4">
-      Part I (Phases 0-7, +10): build a recommender with production discipline.
-      Part II (Phases 8-9): prove the offline metric was biased, then fix the learning.
+      Part I (Phases 0-7, +10, 12-13): build a recommender with production discipline.
+      Part II (Phases 8-9, 11, 14): prove the metric was biased, fix the learning,
+      debias positions, and explore to mint unbiased data at the source.
     </footer>
   </div>
   <script>
@@ -211,6 +217,23 @@
             ]
           },
           options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+        new Chart(document.getElementById('chartK'), {
+          type: 'line',
+          data: {
+            labels: [0, 847, 1694, 2542, 3389, 4237, 5084, 5932, 6779, 7626, 8474, 9321, 10169, 11016, 11864, 12711, 13559, 14406, 15253, 16101, 16948, 17796, 18643, 19491, 20338, 21186, 22033, 22880, 23728, 24575, 25423, 26270, 27118, 27965, 28812, 29660, 30507, 31355, 32202, 33050, 33897, 34745, 35592, 36439, 37287, 38134, 38982, 39829, 40677, 41524, 42372, 43219, 44066, 44914, 45761, 46609, 47456, 48304, 49151, 49999],
+            datasets: [
+              { label: 'Greedy', borderColor: '#dc2626', backgroundColor: '#dc2626',
+                 data: [0.17, 53.4, 80.15, 106.74, 133.2, 159.31, 185.37, 211.46, 237.53, 263.59, 289.69, 315.72, 341.63, 367.5, 393.4, 419.27, 445.17, 471.04, 496.91, 522.81, 548.68, 574.58, 600.45, 626.35, 652.22, 678.12, 703.99, 729.86, 755.76, 781.63, 807.53, 833.4, 859.3, 885.18, 911.05, 936.95, 962.82, 988.72, 1014.59, 1040.49, 1066.36, 1092.26, 1118.13, 1144.0, 1169.9, 1195.77, 1221.67, 1247.54, 1273.45, 1299.32, 1325.22, 1351.09, 1376.96, 1402.86, 1428.73, 1454.63, 1480.5, 1506.4, 1532.27, 1558.17], pointRadius: 0, borderWidth: 2 },
+              { label: 'Epsilon-greedy', borderColor: '#f59e0b', backgroundColor: '#f59e0b',
+                 data: [0.17, 71.13, 110.44, 143.57, 174.15, 203.85, 233.76, 263.29, 292.13, 321.0, 348.61, 376.51, 403.69, 431.11, 458.07, 484.46, 510.74, 536.96, 563.38, 589.02, 613.79, 638.83, 663.51, 688.44, 712.79, 736.94, 761.34, 785.47, 810.16, 834.73, 859.07, 883.01, 907.45, 931.24, 955.5, 978.38, 1002.32, 1026.05, 1049.37, 1073.01, 1096.8, 1120.89, 1144.6, 1168.41, 1192.15, 1215.4, 1239.04, 1262.11, 1285.15, 1308.68, 1332.15, 1355.11, 1377.96, 1401.14, 1424.06, 1447.42, 1470.71, 1494.02, 1516.79, 1539.73], pointRadius: 0, borderWidth: 2 },
+              { label: 'Thompson', borderColor: '#16a34a', backgroundColor: '#16a34a',
+                 data: [0.17, 122.75, 208.59, 273.12, 322.74, 362.62, 396.0, 424.64, 448.68, 469.37, 488.07, 505.39, 521.52, 536.86, 550.87, 563.97, 576.12, 587.67, 598.4, 608.62, 618.34, 627.7, 636.76, 645.6, 653.93, 661.72, 669.22, 676.33, 683.39, 690.13, 696.68, 703.05, 709.03, 714.67, 720.33, 725.64, 730.72, 735.81, 740.69, 745.25, 749.68, 753.91, 758.11, 762.12, 766.06, 769.86, 773.66, 777.15, 780.61, 783.84, 787.15, 790.65, 793.86, 796.97, 800.11, 803.05, 805.88, 808.65, 811.5, 814.37], pointRadius: 0, borderWidth: 2 }
+            ]
+          },
+          options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } },
+            scales: { x: { title: { display: true, text: 'round' } },
+                       y: { title: { display: true, text: 'cumulative regret' } } } }
         });
   </script>
 </body>

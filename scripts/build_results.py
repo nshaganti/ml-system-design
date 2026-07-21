@@ -213,10 +213,33 @@ def group_j(p13: dict) -> str:
     return "\n".join(out)
 
 
+def group_k(p14: dict) -> str:
+    rows = [
+        ("Greedy (exploit only)", p14["greedy"]),
+        ("Epsilon-greedy", p14["epsilon_greedy"]),
+        ("Thompson sampling", p14["thompson"]),
+    ]
+    # lower regret is better; higher is better for the rest
+    best_regret = min(rows, key=lambda r: r[1]["final_regret"])[0]
+    best = {m: max(rows, key=lambda r: r[1][m])[0]
+            for m in ("best_arm_pct", "arm_support", "found_best_pct")}
+    out = ["| Strategy | Mean regret | Best-arm % | Log support | Found best % |",
+           "|---|---|---|---|---|"]
+    for label, m in rows:
+        reg = f"{m['final_regret']:.0f}"
+        reg = f"**{reg}**" if label == best_regret else reg
+        cells = []
+        for metric in ("best_arm_pct", "arm_support", "found_best_pct"):
+            v = f"{m[metric]*100:.0f}%"
+            cells.append(f"**{v}**" if label == best[metric] else v)
+        out.append(f"| {label} | {reg} | {cells[0]} | {cells[1]} | {cells[2]} |")
+    return "\n".join(out)
+
+
 # --------------------------------------------------------------- main
 
 def build(text: str) -> str:
-    p = {n: load(n) for n in range(14)}
+    p = {n: load(n) for n in range(15)}
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -237,6 +260,8 @@ def build(text: str) -> str:
         text = replace_block(text, "groupI", group_i(p[12]))
     if p[13]:
         text = replace_block(text, "groupJ", group_j(p[13]))
+    if p[14]:
+        text = replace_block(text, "groupK", group_k(p[14]))
     return text
 
 

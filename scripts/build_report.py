@@ -45,7 +45,7 @@ def _chart(canvas_id: str, height: int = 260) -> str:
 
 
 def build() -> str:
-    p = {n: load(n) for n in range(14)}
+    p = {n: load(n) for n in range(15)}
     charts_js: list[str] = []
     cards: list[str] = []
 
@@ -264,6 +264,36 @@ def build() -> str:
           options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }} }}
         }});""")
 
+    # --- Group K: explore-and-learn loop (Phase 14) --------------------
+    if p[14]:
+        cards.append(_card(
+            "Group K - Explore-and-learn: where unbiased data comes from (Phase 14)",
+            _chart("chartK"),
+            "Mean cumulative regret over 50k rounds (60 seeded worlds). Thompson's "
+            "curve FLATTENS (it converges and stops paying) while greedy/epsilon stay "
+            "linear. Exploration is the online source of the unbiased data Part II needs.",
+        ))
+        cx = p[14]["_curve_x"]
+        cv = p[14]["_regret_curves"]
+        charts_js.append(f"""
+        new Chart(document.getElementById('chartK'), {{
+          type: 'line',
+          data: {{
+            labels: {[int(x) for x in cx]},
+            datasets: [
+              {{ label: 'Greedy', borderColor: '#dc2626', backgroundColor: '#dc2626',
+                 data: {cv['greedy']}, pointRadius: 0, borderWidth: 2 }},
+              {{ label: 'Epsilon-greedy', borderColor: '#f59e0b', backgroundColor: '#f59e0b',
+                 data: {cv['epsilon_greedy']}, pointRadius: 0, borderWidth: 2 }},
+              {{ label: 'Thompson', borderColor: '#16a34a', backgroundColor: '#16a34a',
+                 data: {cv['thompson']}, pointRadius: 0, borderWidth: 2 }}
+            ]
+          }},
+          options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }},
+            scales: {{ x: {{ title: {{ display: true, text: 'round' }} }},
+                       y: {{ title: {{ display: true, text: 'cumulative regret' }} }} }} }}
+        }});""")
+
     # --- serving + gate summary tiles (Phase 3, 4) ----------------------
     tiles = []
     if p[3]:
@@ -320,8 +350,9 @@ def build() -> str:
     {"".join(cards)}
 
     <footer class="text-center text-sm text-slate-500 pt-4">
-      Part I (Phases 0-7, +10): build a recommender with production discipline.
-      Part II (Phases 8-9): prove the offline metric was biased, then fix the learning.
+      Part I (Phases 0-7, +10, 12-13): build a recommender with production discipline.
+      Part II (Phases 8-9, 11, 14): prove the metric was biased, fix the learning,
+      debias positions, and explore to mint unbiased data at the source.
     </footer>
   </div>
   <script>
