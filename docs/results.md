@@ -377,6 +377,38 @@ engine the whole course was building toward.** See [`phase16.md`](phase16.md).
 
 ---
 
+## Group N -- Real context + safety-gated redeploys (Phase 17)
+
+*The production-real finale. Comparable within the group -- four loop variants +
+skyline/floor, averaged over 15 worlds x 15 redeploy iterations. Contexts are REAL
+standardized per-user features (activity + signal-mix) from ~23.5k KuaiRand users; a
+simulated logging bug flips one training batch's rewards at iteration 8.*
+
+<!-- AUTOGEN:groupN -->
+| Scenario | Final value | % skyline gap | Worst deploy |
+|---|---|---|---|
+| Uniform floor | 0.5564 | 0% | -- |
+| Ungated, clean | 0.7997 | 59% | 0.6572 |
+| Gated, clean | 0.8322 | 67% | 0.6473 |
+| Ungated, POISONED | 0.7922 | 57% | 0.5698 |
+| Gated, POISONED | 0.8272 | 66% | 0.6090 |
+| Skyline (oracle) | 0.9666 | 100% | -- |
+<!-- /AUTOGEN:groupN -->
+
+**Verdict:** the loop now runs on real, correlated user contexts and each redeploy is
+gated by off-policy evaluation. Two wins. (1) With realistic recency-window
+retraining, candidates are noisy -- and **the gate helps even in the clean case**
+(67% vs 59% of skyline) by validating each candidate on a fresh **uniform-random
+bucket** (Phase 8's unbiased log, used live) and only shipping true winners. (2) When
+a logging bug ships a corrupt candidate, the insurance pays off: the ungated loop's
+worst deployed value **craters to 0.5698**, while the gate rejects the poison and the
+gated loop's worst stays **0.6090**. A safety gate is priced in the good case and
+cashed in the bad. The min-propensity floor bounds importance weights so one rare
+action can't blow up the estimate (Phase 11's variance guard). See
+[`phase17.md`](phase17.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -398,6 +430,7 @@ engine the whole course was building toward.** See [`phase16.md`](phase16.md).
 | 14 Explore-and-learn | **unbiased data at the source** | Thompson -48% regret, 98% finds best, full support | up (regret + data quality) |
 | 15 Contextual bandit | **personalized exploration** (LinUCB) | -92% regret vs context-free, 62% per-user-best | **up** |
 | 16 Closing the loop | **the full cycle** (explore->learn->redeploy) | exploration 41% -> 96% of skyline; IPS a wash | **up** |
+| 17 Real ctx + safety gate | **safe, real-context redeploys** | gate helps clean (67 vs 59%) & blocks a bug (worst 0.61 vs 0.57) | **up** |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline

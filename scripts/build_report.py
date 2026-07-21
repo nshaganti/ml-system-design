@@ -45,7 +45,7 @@ def _chart(canvas_id: str, height: int = 260) -> str:
 
 
 def build() -> str:
-    p = {n: load(n) for n in range(17)}
+    p = {n: load(n) for n in range(18)}
     charts_js: list[str] = []
     cards: list[str] = []
 
@@ -361,6 +361,45 @@ def build() -> str:
                        y: {{ title: {{ display: true, text: 'true deployed value' }} }} }} }}
         }});""")
 
+    # --- Group N: real context + safety gate (Phase 17) ----------------
+    if p[17]:
+        cards.append(_card(
+            "Group N - Real context + safety-gated redeploys (Phase 17)",
+            _chart("chartN"),
+            "TRUE deployed value per iteration on REAL user contexts. A logging bug "
+            "poisons iteration " + str(p[17].get("poison_iter", 8)) + ": the ungated "
+            "loop craters, the OPE-gated loop rejects the bad candidate and holds.",
+        ))
+        it = p[17]["_iterations"]
+        sky, flr = p[17]["skyline"], p[17]["uniform"]
+        tr = {k: p[17][k]["trajectory"] for k in
+              ("ungated_clean", "gated_clean", "ungated_poison", "gated_poison")}
+        n_it = len(it)
+        charts_js.append(f"""
+        new Chart(document.getElementById('chartN'), {{
+          type: 'line',
+          data: {{
+            labels: {[int(x) for x in it]},
+            datasets: [
+              {{ label: 'Skyline', borderColor: '#111827', borderDash: [6,4],
+                 backgroundColor: '#111827', data: {[round(sky,4)]*n_it}, pointRadius: 0, borderWidth: 1 }},
+              {{ label: 'Gated, clean', borderColor: '#16a34a',
+                 backgroundColor: '#16a34a', data: {tr['gated_clean']}, pointRadius: 0, borderWidth: 2 }},
+              {{ label: 'Ungated, clean', borderColor: '#2563eb',
+                 backgroundColor: '#2563eb', data: {tr['ungated_clean']}, pointRadius: 0, borderWidth: 2 }},
+              {{ label: 'Gated, POISONED', borderColor: '#f59e0b',
+                 backgroundColor: '#f59e0b', data: {tr['gated_poison']}, pointRadius: 0, borderWidth: 2 }},
+              {{ label: 'Ungated, POISONED', borderColor: '#dc2626',
+                 backgroundColor: '#dc2626', data: {tr['ungated_poison']}, pointRadius: 0, borderWidth: 2 }},
+              {{ label: 'Uniform floor', borderColor: '#9ca3af', borderDash: [3,3],
+                 backgroundColor: '#9ca3af', data: {[round(flr,4)]*n_it}, pointRadius: 0, borderWidth: 1 }}
+            ]
+          }},
+          options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }},
+            scales: {{ x: {{ title: {{ display: true, text: 'redeploy iteration' }} }},
+                       y: {{ title: {{ display: true, text: 'true deployed value' }} }} }} }}
+        }});""")
+
     # --- serving + gate summary tiles (Phase 3, 4) ----------------------
     tiles = []
     if p[3]:
@@ -418,8 +457,8 @@ def build() -> str:
 
     <footer class="text-center text-sm text-slate-500 pt-4">
       Part I (Phases 0-7, +10, 12-13): build a recommender with production discipline.
-      Part II (Phases 8-9, 11, 14-16): prove the metric was biased, fix the learning,
-      debias positions, explore (globally, per-user), and close the off-policy loop.
+      Part II (Phases 8-9, 11, 14-17): prove the metric was biased, fix the learning,
+      debias positions, explore (globally, per-user), and close + safety-gate the loop.
     </footer>
   </div>
   <script>

@@ -97,11 +97,16 @@
       <div style="height:260px"><canvas id="chartM"></canvas></div>
       <p class="text-sm text-slate-500 mt-3">TRUE deployed value per redeploy iteration. Exploring loops climb toward the skyline (dashed); the no-exploration trap stalls low. Exploration sets the ceiling; IPS is a near-wash with a well-specified model.</p>
     </section>
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Group N - Real context + safety-gated redeploys (Phase 17)</h2>
+      <div style="height:260px"><canvas id="chartN"></canvas></div>
+      <p class="text-sm text-slate-500 mt-3">TRUE deployed value per iteration on REAL user contexts. A logging bug poisons iteration 8: the ungated loop craters, the OPE-gated loop rejects the bad candidate and holds.</p>
+    </section>
 
     <footer class="text-center text-sm text-slate-500 pt-4">
       Part I (Phases 0-7, +10, 12-13): build a recommender with production discipline.
-      Part II (Phases 8-9, 11, 14-16): prove the metric was biased, fix the learning,
-      debias positions, explore (globally, per-user), and close the off-policy loop.
+      Part II (Phases 8-9, 11, 14-17): prove the metric was biased, fix the learning,
+      debias positions, explore (globally, per-user), and close + safety-gate the loop.
     </footer>
   </div>
   <script>
@@ -277,6 +282,29 @@
                  backgroundColor: '#dc2626', data: [0.57, 0.6317, 0.6827, 0.6901, 0.6917, 0.699, 0.7088, 0.7139, 0.7147, 0.7149, 0.715, 0.7149, 0.715, 0.715, 0.7151], pointRadius: 0, borderWidth: 2 },
               { label: 'Uniform floor', borderColor: '#9ca3af', borderDash: [3,3],
                  backgroundColor: '#9ca3af', data: [0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566, 0.566], pointRadius: 0, borderWidth: 1 }
+            ]
+          },
+          options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } },
+            scales: { x: { title: { display: true, text: 'redeploy iteration' } },
+                       y: { title: { display: true, text: 'true deployed value' } } } }
+        });
+        new Chart(document.getElementById('chartN'), {
+          type: 'line',
+          data: {
+            labels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            datasets: [
+              { label: 'Skyline', borderColor: '#111827', borderDash: [6,4],
+                 backgroundColor: '#111827', data: [0.9666, 0.9666, 0.9666, 0.9666, 0.9666, 0.9666, 0.9666, 0.9666, 0.9666, 0.9666, 0.9666, 0.9666, 0.9666, 0.9666, 0.9666], pointRadius: 0, borderWidth: 1 },
+              { label: 'Gated, clean', borderColor: '#16a34a',
+                 backgroundColor: '#16a34a', data: [0.6844, 0.733, 0.7331, 0.7898, 0.7901, 0.8008, 0.7865, 0.7928, 0.7877, 0.8059, 0.7972, 0.7959, 0.8162, 0.8029, 0.8322], pointRadius: 0, borderWidth: 2 },
+              { label: 'Ungated, clean', borderColor: '#2563eb',
+                 backgroundColor: '#2563eb', data: [0.6926, 0.7738, 0.7832, 0.8262, 0.7986, 0.7821, 0.8041, 0.7759, 0.8068, 0.8105, 0.8141, 0.828, 0.7921, 0.7576, 0.7997], pointRadius: 0, borderWidth: 2 },
+              { label: 'Gated, POISONED', borderColor: '#f59e0b',
+                 backgroundColor: '#f59e0b', data: [0.6844, 0.733, 0.7331, 0.7898, 0.7901, 0.8008, 0.7865, 0.7928, 0.7766, 0.7117, 0.7242, 0.6886, 0.7655, 0.8199, 0.8272], pointRadius: 0, borderWidth: 2 },
+              { label: 'Ungated, POISONED', borderColor: '#dc2626',
+                 backgroundColor: '#dc2626', data: [0.6926, 0.7738, 0.7832, 0.8262, 0.7986, 0.7821, 0.8041, 0.7759, 0.6262, 0.6482, 0.693, 0.6726, 0.8203, 0.801, 0.7922], pointRadius: 0, borderWidth: 2 },
+              { label: 'Uniform floor', borderColor: '#9ca3af', borderDash: [3,3],
+                 backgroundColor: '#9ca3af', data: [0.5564, 0.5564, 0.5564, 0.5564, 0.5564, 0.5564, 0.5564, 0.5564, 0.5564, 0.5564, 0.5564, 0.5564, 0.5564, 0.5564, 0.5564], pointRadius: 0, borderWidth: 1 }
             ]
           },
           options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } },

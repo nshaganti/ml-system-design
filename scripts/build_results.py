@@ -268,10 +268,26 @@ def group_m(p16: dict) -> str:
     return "\n".join(out)
 
 
+def group_n(p17: dict) -> str:
+    rows = [
+        ("Uniform floor", p17["uniform"], 0.0, None),
+        ("Ungated, clean", p17["ungated_clean"]["final_value"], p17["ungated_clean"]["gap_closed"], p17["ungated_clean"]["min_value"]),
+        ("Gated, clean", p17["gated_clean"]["final_value"], p17["gated_clean"]["gap_closed"], p17["gated_clean"]["min_value"]),
+        ("Ungated, POISONED", p17["ungated_poison"]["final_value"], p17["ungated_poison"]["gap_closed"], p17["ungated_poison"]["min_value"]),
+        ("Gated, POISONED", p17["gated_poison"]["final_value"], p17["gated_poison"]["gap_closed"], p17["gated_poison"]["min_value"]),
+        ("Skyline (oracle)", p17["skyline"], 1.0, None),
+    ]
+    out = ["| Scenario | Final value | % skyline gap | Worst deploy |", "|---|---|---|---|"]
+    for label, val, gap, worst in rows:
+        w = "--" if worst is None else f"{worst:.4f}"
+        out.append(f"| {label} | {val:.4f} | {gap*100:.0f}% | {w} |")
+    return "\n".join(out)
+
+
 # --------------------------------------------------------------- main
 
 def build(text: str) -> str:
-    p = {n: load(n) for n in range(17)}
+    p = {n: load(n) for n in range(18)}
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -298,6 +314,8 @@ def build(text: str) -> str:
         text = replace_block(text, "groupL", group_l(p[15]))
     if p[16]:
         text = replace_block(text, "groupM", group_m(p[16]))
+    if p[17]:
+        text = replace_block(text, "groupN", group_n(p[17]))
     return text
 
 
