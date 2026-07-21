@@ -263,6 +263,32 @@ See [`phase12.md`](phase12.md).
 
 ---
 
+## Group J -- Stage 2 that earns its place: the two-tower score as a feature (Phase 13)
+
+*Comparable within the group only -- three rankers, same users/split/harness.* The
+direct fix for Group I's regression: give the LR the two-tower similarity score as a
+feature so the rerank stops fighting the retriever.
+
+<!-- AUTOGEN:groupJ -->
+| Ranker | Recall@20 | NDCG@20 | Coverage |
+|---|---|---|---|
+| Two-tower alone | 0.1236 | 0.0871 | **0.1544** |
+| TT -> LR (pop feats) | 0.1002 | 0.0688 | 0.0797 |
+| TT -> LR + tt_score | **0.1277** | **0.0897** | 0.1346 |
+<!-- /AUTOGEN:groupJ -->
+
+**Verdict:** the fix works. Adding one feature -- the retrieval score itself --
+turns Group I's -19% regression into a **+3.3% recall / +3% NDCG win over two-tower
+alone**, while popularity-only reranking still regresses (-19%). With the score in
+hand, the LR *preserves* good retrieval order and only reorders when a popularity
+signal genuinely helps; without it, the ranker was flying blind and shoving popular
+items up. Coverage stays below two-tower-alone (the ranker still tilts a little
+toward popular items), which is the honest cost of the small accuracy gain. **Two
+stages beat one only once stage 2 can see what stage 1 knows.** See
+[`phase13.md`](phase13.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -280,6 +306,7 @@ See [`phase12.md`](phase12.md).
 | 10 Sequence model | **order modelling** (GRU4Rec) | beats popularity, LOSES to co-vis by ~15% | up vs pop, down vs covis |
 | 11 Position debiasing | **causal labels** (IPW) | recovered ranking Spearman 0.86 -> 0.97 | up (ranking quality) |
 | 12 Two-stage integration | **architecture** (retrieve->rank) | two-stage LOSES to two-tower alone (-19%) | down (weak stage-2 signal) |
+| 13 Score-as-feature | **the right stage-2 signal** | +tt_score two-stage BEATS two-tower alone (+3.3%) | **up** |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline
@@ -303,6 +330,7 @@ needle -- and remembering that only within-group numbers are comparable:
 | Streaming freshness (P6) | +0.2%, not significant | **No -- flat** |
 | GRU4Rec sequence model (P10) | -15% vs co-visitation | **No -- lost to a simpler model** |
 | Two-stage retrieve->rank (P12) | -19% vs two-tower alone | **No -- weak stage-2 undid stage-1** |
+| ...+ two-tower score as a feature (P13) | +3.3% vs two-tower alone | **Yes -- once stage-2 could see stage-1** |
 
 **The shape of the curve is not monotonic.** Three of six sophistication upgrades
 did nothing or actively hurt on this dataset. That is not a failure of the repo --

@@ -37,6 +37,12 @@ class TwoStageRanker:
                           (user, candidate) features the reranker needs.
     candidate_pool      : how many candidates stage 1 hands to stage 2. Bigger =
                           more chances to recover a relevant item, slower to rank.
+    feature_augmenter   : optional callable (user_id, user_events, features_df) ->
+                          features_df, to add columns the reranker needs that the
+                          feature store doesn't own -- e.g. the two-tower similarity
+                          score (Phase 13). Keeps this class open for extension but
+                          closed for modification: it never learns about any
+                          specific model. Defaults to a no-op.
     """
 
     def __init__(
@@ -45,11 +51,13 @@ class TwoStageRanker:
         reranker,
         feature_store,
         candidate_pool: int = 200,
+        feature_augmenter=None,
     ):
         self.candidate_generator = candidate_generator
         self.reranker = reranker
         self.feature_store = feature_store
         self.candidate_pool = candidate_pool
+        self.feature_augmenter = feature_augmenter
 
     @property
     def catalog_size(self) -> int:
@@ -70,6 +78,8 @@ class TwoStageRanker:
             pl.lit(user_id).alias("user_id")
         )
         features = self.feature_store.get_online_features_batch(cand_df)
+        if self.feature_augmenter is not None:
+            features = self.feature_augmenter(user_id, user_events, features)
         ranked = self.reranker.rank(features, item_col="item_id", n=n)
 
         # Safety net: if the reranker somehow drops below n (e.g. dedupe), backfill

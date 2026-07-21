@@ -42,6 +42,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase7.md`](docs/phase7.md) -- session co-visitation: +60% over popularity on the community's next-item task.
 - [`docs/phase10.md`](docs/phase10.md) -- a GRU4Rec **sequence model** on the same protocol: beats popularity but **loses to co-visitation** by ~15% (fancier isn't automatically better).
 - [`docs/phase12.md`](docs/phase12.md) -- the **two-stage integration** (two-tower retrieval -> LR rerank): the textbook architecture **loses to two-tower alone** (-19%) because the popularity-flavored ranker undoes personalization.
+- [`docs/phase13.md`](docs/phase13.md) -- **stage 2 that earns its place**: feed the two-tower similarity score into the LR and the two-stage system **beats two-tower alone** (+3.3%). Two stages beat one only once stage 2 can see stage 1.
 
 **Part II -- causality-aware evaluation:**
 
@@ -86,6 +87,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 ├── phase10/                  # GRU4Rec sequence model (Part I extension)
 ├── phase11/                  # Position-bias debiasing -- Part II (controlled sim)
 ├── phase12/                  # Two-stage retrieval + ranking integration
+├── phase13/                  # Two-tower score as a ranking feature (stage-2 fix)
 ├── scripts/                  # build_results.py + build_report.py (scoreboard/report generators)
 ├── run_all.py                # run every phase end-to-end, then rebuild docs
 ├── tests/                    # pytest suite (tiny in-memory frames, no CSVs needed)
@@ -149,6 +151,7 @@ cd phase7 && python run.py   # session co-visitation: +60% over popularity
 cd phase10 && python run.py  # GRU4Rec sequence model: beats popularity, loses to co-vis
 cd phase11 && python run.py  # PART II -- position debiasing: IPW recovers ranking 0.86 -> 0.97
 cd phase12 && python run.py  # two-stage retrieve+rank: honest -- loses to two-tower alone
+cd phase13 && python run.py  # + two-tower score as a feature: two-stage now WINS (+3.3%)
 cd phase8 && python run.py   # PART II -- OPE: naive metric +100% biased vs SNIPS 0.6%
 cd phase9 && python run.py   # PART II -- OPL: policy learned on unbiased data +87% true value
 ```
@@ -200,6 +203,7 @@ CI runs the same suite on every push and pull request.
 - [x] Phase 7 -- session-based co-visitation benchmark
 - [x] Phase 10 -- GRU4Rec sequence model (beats popularity, loses to co-visitation)
 - [x] Phase 12 -- two-stage retrieval + ranking integration (honest: loses to two-tower alone; the ranker must add signal)
+- [x] Phase 13 -- two-tower score as a ranking feature (stage 2 earns its place: two-stage beats two-tower alone +3.3%)
 
 **Part II -- causality-aware evaluation:**
 
@@ -209,9 +213,6 @@ CI runs the same suite on every push and pull request.
 
 **Not yet built (forward-looking backlog, in priority order):**
 
-- [ ] **Stage-2 that earns its place** -- feed the two-tower similarity score +
-  recency/affinity features into the LR so the rerank *adds* signal instead of
-  undoing personalization (Phase 12 showed the naive two-stage regresses).
 - [ ] **Explore-and-learn loop** -- an online bandit (epsilon-greedy / Thompson) that
   unifies Phase 9 (off-policy learning) and Phase 11 (debiasing): mint unbiased data
   in production, then learn on it. Closes the loop Part II only simulated.

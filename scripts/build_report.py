@@ -45,7 +45,7 @@ def _chart(canvas_id: str, height: int = 260) -> str:
 
 
 def build() -> str:
-    p = {n: load(n) for n in range(13)}
+    p = {n: load(n) for n in range(14)}
     charts_js: list[str] = []
     cards: list[str] = []
 
@@ -232,6 +232,33 @@ def build() -> str:
                  data: [{pl_['recall']:.4f}, {pl_['ndcg']:.4f}, {pl_['coverage']:.4f}] }},
               {{ label: 'Two-tower -> LR', backgroundColor: '#2563eb',
                  data: [{ts['recall']:.4f}, {ts['ndcg']:.4f}, {ts['coverage']:.4f}] }}
+            ]
+          }},
+          options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }} }}
+        }});""")
+
+    # --- Group J: stage-2 earns its place (Phase 13) -------------------
+    if p[13]:
+        cards.append(_card(
+            "Group J - Stage 2 earns its place: two-tower score as a feature (Phase 13)",
+            _chart("chartJ"),
+            "The fix for Group I: feeding the retrieval score into the LR flips the "
+            "-19% regression into a +3.3% win over two-tower alone. Two stages beat "
+            "one only once stage 2 can see what stage 1 knows.",
+        ))
+        tt, sp, st = p[13]["two_tower"], p[13]["two_stage_pop"], p[13]["two_stage_tt"]
+        charts_js.append(f"""
+        new Chart(document.getElementById('chartJ'), {{
+          type: 'bar',
+          data: {{
+            labels: ['Recall@20', 'NDCG@20', 'Coverage'],
+            datasets: [
+              {{ label: 'Two-tower alone', backgroundColor: '#94a3b8',
+                 data: [{tt['recall']:.4f}, {tt['ndcg']:.4f}, {tt['coverage']:.4f}] }},
+              {{ label: 'TT -> LR (pop feats)', backgroundColor: '#dc2626',
+                 data: [{sp['recall']:.4f}, {sp['ndcg']:.4f}, {sp['coverage']:.4f}] }},
+              {{ label: 'TT -> LR + tt_score', backgroundColor: '#16a34a',
+                 data: [{st['recall']:.4f}, {st['ndcg']:.4f}, {st['coverage']:.4f}] }}
             ]
           }},
           options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ position: 'bottom' }} }} }}

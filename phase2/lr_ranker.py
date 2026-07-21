@@ -23,15 +23,28 @@ from sklearn.linear_model import LogisticRegression
 from feature_store import FEATURE_COLUMNS
 
 
-def to_matrix(df: pl.DataFrame, feature_columns: list[str] = FEATURE_COLUMNS) -> np.ndarray:
+def to_matrix(
+    df: pl.DataFrame,
+    feature_columns: list[str] = FEATURE_COLUMNS,
+    log_columns: list[str] | None = None,
+) -> np.ndarray:
     """
     Turn feature columns into a float matrix for sklearn.
 
     log1p on the popularity counts: they're heavy-tailed, and a linear model
     handles log-scaled magnitudes far better than raw counts (Rule 20-ish --
     transform features to a shape the model can use).
+
+    log_columns: which columns to log1p-transform. Defaults to ALL feature_columns
+    (the Phase 2 behaviour). Pass an explicit list when some features are NOT
+    heavy-tailed counts -- e.g. a similarity score that can be negative, where
+    log1p is nonsensical. Anything not in log_columns is passed through raw.
     """
-    cols = [np.log1p(df[c].to_numpy().astype(np.float64)) for c in feature_columns]
+    log_set = set(feature_columns if log_columns is None else log_columns)
+    cols = []
+    for c in feature_columns:
+        v = df[c].to_numpy().astype(np.float64)
+        cols.append(np.log1p(v) if c in log_set else v)
     return np.column_stack(cols)
 
 
@@ -44,15 +57,17 @@ class LRRanker:
     weights : inspect learned coefficients (the whole point of choosing LR)
     """
 
-    def __init__(self, feature_columns: list[str] = FEATURE_COLUMNS, C: float = 1.0):
+    def __init__(self, feature_columns: list[str] = FEATURE_COLUMNS, C: float = 1.0,
+                 log_columns: list[str] | None = None):
         self.feature_columns = feature_columns
+        self.log_columns = log_columns   # None => log every column (Phase 2 default)
         self.model = LogisticRegression(C=C, max_iter=1000)
         self._fitted = False
 
     def fit(self, training_df: pl.DataFrame, label_col: str = "label") -> "LRRanker":
         if label_col not in training_df.columns:
             raise ValueError(f"training_df missing label column {label_col!r}")
-        X = to_matrix(training_df, self.feature_columns)
+        X = to_matrix(training_df, self.feature_columns, self.log_columns)
         y = training_df[label_col].to_numpy().astype(int)
         if len(np.unique(y)) < 2:
             raise ValueError("Need both positive and negative labels to train LR.")
@@ -66,7 +81,7 @@ class LRRanker:
 
     def predict_proba(self, df: pl.DataFrame) -> np.ndarray:
         self._require_fitted()
-        X = to_matrix(df, self.feature_columns)
+        X = to_matrix(df, self.feature_columns, self.log_columns)
         return self.model.predict_proba(X)[:, 1]
 
     def rank(self, candidates_df: pl.DataFrame, item_col: str = "item_id", n: int = 20) -> list[str]:

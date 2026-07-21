@@ -196,10 +196,27 @@ def group_i(p12: dict) -> str:
     return "\n".join(out)
 
 
+def group_j(p13: dict) -> str:
+    rows = [
+        ("Two-tower alone", p13["two_tower"]),
+        ("TT -> LR (pop feats)", p13["two_stage_pop"]),
+        ("TT -> LR + tt_score", p13["two_stage_tt"]),
+    ]
+    out = ["| Ranker | Recall@20 | NDCG@20 | Coverage |", "|---|---|---|---|"]
+    best_by = {m: max(rows, key=lambda r: r[1][m])[0] for m in ("recall", "ndcg", "coverage")}
+    for label, m in rows:
+        cells = []
+        for metric in ("recall", "ndcg", "coverage"):
+            v = f"{m[metric]:.4f}"
+            cells.append(f"**{v}**" if label == best_by[metric] else v)
+        out.append(f"| {label} | {cells[0]} | {cells[1]} | {cells[2]} |")
+    return "\n".join(out)
+
+
 # --------------------------------------------------------------- main
 
 def build(text: str) -> str:
-    p = {n: load(n) for n in range(13)}
+    p = {n: load(n) for n in range(14)}
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -218,6 +235,8 @@ def build(text: str) -> str:
         text = replace_block(text, "groupH", group_h(p[11]))
     if p[12]:
         text = replace_block(text, "groupI", group_i(p[12]))
+    if p[13]:
+        text = replace_block(text, "groupJ", group_j(p[13]))
     return text
 
 
