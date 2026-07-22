@@ -124,6 +124,19 @@ target-action rate (STRONG): 0.3201  (91,985 / 287,322 events)
 - **This FAIL is "correct."** A row-count halving and a calibration slip are
   genuine reasons to block a deploy and make a human look. The lesson: **a red
   gate is information, not an insult.**
+- **Honest caveat: these three signals are partly artifacts of the teaching setup,
+  not organic production incidents.** Read them as *demonstrations that the check
+  fires and how to interpret it*, not as "we caught three real-world regressions":
+  - The `row_count_ratio` FAIL is mostly **split geometry** -- the serving window is
+    smaller than the reference window by construction, so the ratio is low by design.
+    In production you'd baseline against a comparable window.
+  - The ECE is measured on an **artificially balanced ~50/50 positive sample**, not
+    the true (heavily negative) base rate, which inflates the calibration error
+    relative to what a base-rate-matched sample would show.
+  - PSI is quiet partly because the drift feature is **frozen at the split cutoff**,
+    so there's little for it to detect here. On genuinely time-varying features PSI
+    is the star (see the next bullet).
+  The *machinery* is real and correct; the *magnitudes* are shaped by the harness.
 - **Where the model is well-behaved:** 0% fallback (the ranker never errored over
   2,000 requests) and 4.0 categories of diversity in the top-20 (KuaiRand's tags
   are coarse, so 4 distinct categories is healthy spread, not tunnel vision).

@@ -52,11 +52,19 @@ per-arm ridge fitter -- DRY):
 
 ### Reading the numbers
 
-- **Context-free OPE is structurally biased for a contextual target (24% off).** The
-  Phase 8 estimator averages the target policy into one marginal distribution -- it
-  literally cannot represent "different users get different items," so it mis-estimates
-  the value badly. This is the contextual generalization of Phase 8's "measure it"
-  lesson: the *estimator* has to match the *policy class*.
+- **A context-*blind* estimator is structurally biased for a contextual target (24%
+  off).** To make the point concrete we construct the strawman deliberately: take the
+  Phase 8 estimator and feed it the target policy's action frequencies *marginalized*
+  over users (one global distribution). It literally cannot represent "different users
+  get different items," so it mis-estimates the value badly.
+  - *Honest framing:* this is a **constructed** worst case, not the estimator a
+    practitioner would actually reach for -- nobody knowingly marginalizes away the
+    context they're trying to evaluate. The value of the demonstration is the
+    *principle* it isolates, stated next, not a claim that real teams make this exact
+    mistake. (They make subtler versions of it: evaluating a personalized policy with
+    a segment-averaged metric.)
+  - The principle: the *estimator* has to match the *policy class* -- the contextual
+    generalization of Phase 8's "measure it" lesson.
 - **Contextual IPS / SNIPS / DR recover the truth (<=0.3%).** Once the estimator uses
   `pi(a|x)` per row, the importance weights are correct and the value comes back.
 - **Doubly Robust is the safest.** Direct Method is close but leans entirely on the

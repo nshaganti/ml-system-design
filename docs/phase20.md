@@ -22,8 +22,14 @@ P(click | item i, position p) = e_p * r_i        (a click needs BOTH examine AND
 
 Given only clicks, `e_p` and `r_i` are confounded -- but they're jointly identifiable
 (up to a global scale) as long as items appear across a **range** of positions.
-**Regression-EM** (Wang et al., 2018; the estimation heart of the Dual Learning
-Algorithm, Ai et al., 2018) recovers them by alternating:
+We use the **EM form of Regression-EM** (Wang et al., 2018; the estimation heart of
+the Dual Learning Algorithm, Ai et al., 2018), with one honest simplification: the
+original *regresses* relevance on item features with a learned model, whereas we keep
+a **per-item relevance table** (tabular EM). Same E/M machinery; the table is the
+degenerate "one parameter per item" regressor. That's the right call on KuaiRand
+(plenty of clicks per item, no need to generalize across a feature space) but it does
+not demonstrate the feature-generalization that makes Regression-EM shine on sparse
+catalogs. It recovers `e_p` and `r_i` by alternating:
 
 - **E-step** -- for each impression, infer the posterior of the latent
   examine/relevant bits given the click and current estimates. A click forces both
@@ -76,9 +82,13 @@ count.
 2. **Latent-variable EM is the right tool for confounded clicks.** Model the
    examine/relevant split explicitly and alternate; the log-likelihood guarantee keeps
    you honest.
-3. **The output is a training label.** The recovered per-item `r_i` are the debiased
-   labels you'd feed the Phase 2 ranker -- closing the loop from "clicks lie" (Phase
-   11) to "here's the unbiased signal to train on."
+3. **The output is a training signal -- up to scale.** The recovered per-item `r_i`
+   give the debiased *ranking* you'd feed the Phase 2 ranker. Note the honest caveat:
+   PBM identifies relevance only **up to a global scale** (we anchor `e_0 = 1`), so
+   `r_i` is a well-ordered relevance score, not a calibrated click-probability in
+   [0, 1]. That's fine for a ranking loss (order is what matters) but you would need a
+   separate calibration step before treating `r_i` as an absolute CTR. It still closes
+   the loop from "clicks lie" (Phase 11) to "here's the unbiased signal to train on."
 
 This is the final phase of the project. Together with Phases 8, 9, 11, and 19 it
 completes Part II's thesis: **your logs are biased in knowable ways -- name the bias,

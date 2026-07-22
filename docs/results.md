@@ -18,7 +18,7 @@ self-deception this whole project is about avoiding.
 ## The big caveat: read groups, not one trend line
 
 It is tempting to draw one line -- "we added complexity, the metric went up." For
-this system that line would be a **lie**, for three reasons:
+this system that line would be a **lie**, for four reasons:
 
 1. **Different metrics.** Phases 0-2 report `Recall@20`; Phases 5-6 report `hit@20`
    (a per-user binary). These measure different things.
@@ -27,6 +27,12 @@ this system that line would be a **lie**, for three reasons:
    *within a session* -- an easier task entirely.
 3. **Different populations.** Phase 5/6 evaluate subsets (test positives,
    multi-event users), not the same user set as Phase 0/1.
+4. **Different "positive" definitions.** Even the word *Recall@20* isn't one metric:
+   Phase 0/1's evaluator counts a hit against `POSITIVE_SIGNALS` (MEDIUM or STRONG),
+   while Phase 2's uses `TARGET_SIGNAL` (STRONG only). A stricter relevance set is a
+   harder target, so a bare "0.068" in one phase is **not** the same yardstick as
+   "0.068" in another -- compare deltas *within* a phase's own baseline, never raw
+   values across phases.
 
 So the tables below are **grouped by what is actually comparable.** Cross-group
 comparisons are explicitly flagged as invalid.

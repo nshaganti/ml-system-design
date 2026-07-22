@@ -99,11 +99,17 @@ Decision: DO NOT SHIP -- treatment is significantly WORSE.
 This is the A/B test doing exactly its job -- catching a bad change before it
 ships:
 
-1. **The online test confirms the offline signal.** Phase 2 said the LR ranker
-   was worse offline (-12% NDCG); the A/B test says it is worse online too
-   (-10.1% hit@20), and now with a **p-value of 0.0006** we can say so with
-   confidence. The 95% CI `[-0.037, -0.010]` sits entirely below zero -- treatment
-   is genuinely worse, not noise.
+1. **The replay is consistent with the offline signal.** Phase 2 said the LR ranker
+   was worse offline (-12% NDCG); the replay A/B says it is worse here too
+   (-10.1% hit@20), and with a **p-value of 0.0006** the difference isn't noise. The
+   95% CI `[-0.037, -0.010]` sits entirely below zero.
+   - *Caveat (see the honest-framing note above):* this is a **replay on the same
+     logged labels** partitioned by a user-hash, not a live experiment. It can't
+     *independently confirm* the offline result -- it's largely the same evidence
+     sliced a second way, so agreement is reassuring but not new information. A true
+     confirmation needs live traffic (users reacting to the treatment ranking). What
+     the replay *does* teach is the experiment machinery: sticky hash assignment, a
+     two-proportion z-test, CIs, and a ship/no-ship rule.
 
 2. **This experiment was adequately powered.** Unlike a thin offline slice, the
    live arms had ~7,500 users each at a ~23% baseline hit rate -- comfortably

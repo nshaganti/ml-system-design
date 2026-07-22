@@ -603,9 +603,9 @@ exploration still helps on top of context. Full walkthrough: [`docs/phase15.md`]
 Wires the whole course into the cycle a recommender runs forever: **deploy -> explore
 + log -> learn off-policy -> redeploy**. Exploration lifts the deployed policy's TRUE
 value from **41% to ~96% of the skyline**; the no-exploration variant stalls. Honest
-wrinkle: with a well-specified linear model, IPS was a near-wash (it only added
-variance) -- propensities earn their keep under misspecification or direct value
-estimation, not everywhere. Full walkthrough: [`docs/phase16.md`](docs/phase16.md).
+wrinkle: with a *near*-well-specified linear model (the reward is clipped-linear, so
+mildly non-linear), IPS was a near-wash (it only added variance) -- propensities earn
+their keep under stronger misspecification or direct value estimation, not everywhere. Full walkthrough: [`docs/phase16.md`](docs/phase16.md).
 
 ### Phase 17 -- Real Context + Safety-Gated Redeploys
 
@@ -631,8 +631,9 @@ its place on YOUR data.** Details: [`docs/phase18.md`](docs/phase18.md).
 ### Phase 19 -- Contextual OPE/OPL
 
 Generalizes Phases 8-9 from one global policy to **per-user** policies. The context-
-free estimator is **24% off** for a contextual target (it can't represent "different
-users, different items"); contextual IPS/SNIPS/Doubly-Robust recover the truth to
+free estimator is **24% off** for a contextual target (a *constructed* strawman -- the
+Phase 8 estimator fed context-marginalized frequencies -- to isolate the principle,
+not the mistake teams knowingly make); contextual IPS/SNIPS/Doubly-Robust recover the truth to
 within 0.3%, with **DR the safest** (unbiased if either the model or the propensities
 are right). Learning off a context-blind log, a contextual policy beats a context-free
 one by **+28%** true value -- it recovers the personalization the logger discarded.
@@ -641,11 +642,13 @@ Details: [`docs/phase19.md`](docs/phase19.md).
 ### Phase 20 -- Joint EM Position-Bias Debiasing
 
 Finishes the position-bias arc. Phase 11 needed the examination curve from a costly
-randomization bucket; **Regression-EM** estimates the examination curve AND per-item
-relevance *jointly* from ordinary confounded production logs. It matches the
+randomization bucket; **tabular EM** (the EM form of Regression-EM, with a per-item
+relevance table rather than a feature regressor) estimates the examination curve AND
+per-item relevance *jointly* from ordinary confounded production logs. It matches the
 randomization-based IPW (**Spearman 0.923 vs 0.937**) and nearly the oracle (0.941)
 with **no randomization at all** -- you can debias production traffic in place, and the
-recovered relevances are the labels you'd feed the Phase 2 ranker. Details:
+recovered relevances are the *ranking* you'd feed the Phase 2 ranker (identified only
+up to a global scale, so a well-ordered score, not a calibrated CTR). Details:
 [`docs/phase20.md`](docs/phase20.md).
 
 ---

@@ -108,4 +108,5 @@ class StreamingFeatureStore:
     # --------------------------------------------------------- helpers
 
     def _category_of(self, item_id: str) -> str | None:
-        return self.batch._lookup_str(self.batch._item_category, item_id)
+        # O(1) hit against the batch store's serving index (was _lookup_str).
+        return self.batch._item_cat_idx.get(item_id)

@@ -57,11 +57,17 @@ averaged over 15 worlds):
   Turn exploration on and the deployed value climbs to **96-98%** of the skyline,
   redeploy after redeploy.
 - **The honest wrinkle: IPS barely moved the needle** (96% with, 98% without). This
-  is not a bug -- it's the deepest lesson in the project. With a **well-specified
-  linear** per-arm reward model, ordinary regression is already unbiased even on a
-  skewed context distribution (OLS recovers the true weights regardless of which
+  is not a bug -- it's the deepest lesson in the project. With a **near-well-specified
+  linear** per-arm reward model, ordinary regression is already (almost) unbiased even
+  on a skewed context distribution (OLS recovers the true weights regardless of which
   contexts an arm was shown in). So IPS here only *added variance* -- Phase 11's
   bias-variance tradeoff, one final time.
+  - *Caveat, stated plainly:* our reward is `clip(theta.x, 0.01, 0.99)`, so the world
+    is **mildly non-linear** at the clip boundaries -- the linear model is only
+    *approximately* well-specified. That makes this a demonstration of the
+    *direction* (with good coverage + a roughly-right model, reweighting is a
+    near-wash) rather than a clean theorem. Under stronger misspecification the story
+    flips, which is exactly the next bullet.
 - **When do propensities earn their keep, then?** When the reward model is
   *misspecified*, or when you estimate a policy's **value directly** (Phase 8's OPE)
   instead of fitting a reward model. Coverage (exploration) is what a

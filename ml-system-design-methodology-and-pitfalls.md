@@ -758,10 +758,11 @@ safest** (unbiased if *either* the reward model or the propensities are right). 
 ### Pitfall 12: Paying for randomization you can estimate (Phase 20)
 
 Phase 11 bought the examination curve with a revenue-costing result-randomization
-bucket. **Regression-EM** recovers the examination curve *and* relevance jointly from
-ordinary confounded logs (Spearman 0.92, matching the randomized IPW) -- so you can
-debias production traffic in place. One gotcha: EM converges at a **linear** rate (60
-iterations gave 0.72; ~300 gave 0.92) -- watch the log-likelihood plateau instead of
+bucket. **Tabular EM** (the EM form of Regression-EM, with a per-item relevance table)
+recovers the examination curve *and* relevance jointly from ordinary confounded logs
+(Spearman 0.92, matching the randomized IPW) -- so you can debias production traffic in
+place. Two honest caveats: relevance is identified only **up to a global scale** (a
+ranking, not a calibrated CTR), and EM converges at a **linear** rate (60 iterations gave 0.72; ~300 gave 0.92) -- watch the log-likelihood plateau instead of
 guessing the iteration count. See [`docs/phase20.md`](docs/phase20.md).
 
 ---

@@ -1,5 +1,5 @@
 """
-Phase 20 -- Joint Position-Bias + Relevance Estimation via EM (Regression-EM / DLA)
+Phase 20 -- Joint Position-Bias + Relevance Estimation via EM (tabular Regression-EM)
 ===================================================================================
 Phase 11 removed position bias with inverse-propensity weighting -- but it needed the
 examination curve `e_p` handed to it, learned from a RESULT-RANDOMIZATION bucket
@@ -12,9 +12,11 @@ The Position-Based Model again:
     P(click | item i, position p) = e_p * r_i          (click needs BOTH examine AND relevant)
 
 Given only clicks, `e_p` and `r_i` are confounded -- but they are jointly identifiable
-(up to scale) as long as items appear across a RANGE of positions. Regression-EM
-(Wang et al., 2018; the estimation heart of the Dual Learning Algorithm, Ai et al.,
-2018) recovers them by alternating:
+(up to scale) as long as items appear across a RANGE of positions. We use the EM
+form of Regression-EM (Wang et al., 2018; the estimation heart of the Dual Learning
+Algorithm, Ai et al., 2018) -- but with a per-item relevance TABLE rather than a
+feature regressor (i.e. tabular EM; the table is the degenerate one-param-per-item
+regressor). It recovers them by alternating:
 
   E-step -- for each impression, infer the posterior of the latent examine/relevant
             bits given the click and the current e_p, r_i estimates.

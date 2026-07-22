@@ -116,6 +116,22 @@ class PointInTimeFeatureStore:
             .agg(pl.len().alias("user_cat_affinity"))
         )
 
+        # O(1) serving indexes. A production store would keep these in Redis; here
+        # we build plain dicts once at fit time so each single-entity serving
+        # lookup is a hash hit, not an O(n) DataFrame scan. THIS is what makes the
+        # "low-latency lookup" contract true (the earlier .filter() per call wasn't).
+        self._item_pop_idx = dict(zip(self._item_totals["item_id"], self._item_totals["item_pop"]))
+        self._user_pop_idx = dict(zip(self._user_totals["user_id"], self._user_totals["user_pop"]))
+        self._item_cat_idx = dict(zip(self._item_category["item_id"], self._item_category["category_id"]))
+        self._user_cat_idx = {
+            (u, c): a
+            for u, c, a in zip(
+                self._user_cat_totals["user_id"],
+                self._user_cat_totals["category_id"],
+                self._user_cat_totals["user_cat_affinity"],
+            )
+        }
+
         self._cutoff_ms = cutoff_timestamp_ms
         self._fitted = True
         print(
@@ -208,17 +224,18 @@ class PointInTimeFeatureStore:
     # ------------------------------------------------------- online (serving)
 
     def get_online_features(self, user_id: str, item_id: str) -> dict:
-        """Latest feature values as of the cutoff -- what serving would fetch."""
+        """Latest feature values as of the cutoff -- what serving would fetch.
+
+        O(1) per entity: reads the dict indexes built at fit time (the stand-in
+        for a Redis/key-value online store). No DataFrame scan on this path.
+        """
         self._require_fitted()
-        item_pop = self._lookup(self._item_totals, ["item_id"], [item_id], "item_pop")
-        user_pop = self._lookup(self._user_totals, ["user_id"], [user_id], "user_pop")
-        category = self._lookup_str(self._item_category, item_id)
+        item_pop = int(self._item_pop_idx.get(item_id, 0))
+        user_pop = int(self._user_pop_idx.get(user_id, 0))
+        category = self._item_cat_idx.get(item_id)
         affinity = 0
         if category is not None:
-            affinity = self._lookup(
-                self._user_cat_totals, ["user_id", "category_id"],
-                [user_id, category], "user_cat_affinity",
-            )
+            affinity = int(self._user_cat_idx.get((user_id, category), 0))
         return {"item_pop": item_pop, "user_pop": user_pop, "user_cat_affinity": affinity}
 
     def get_online_features_batch(self, entity_df: pl.DataFrame) -> pl.DataFrame:
@@ -255,19 +272,6 @@ class PointInTimeFeatureStore:
         return self.get_online_features_batch(entity_df)
 
     # ------------------------------------------------------------- helpers
-
-    @staticmethod
-    def _lookup(totals: pl.DataFrame, keys: list[str], values: list[str], feat: str) -> int:
-        pred = pl.lit(True)
-        for k, v in zip(keys, values):
-            pred = pred & (pl.col(k) == v)
-        row = totals.filter(pred)
-        return int(row[feat][0]) if len(row) else 0
-
-    @staticmethod
-    def _lookup_str(mapping: pl.DataFrame, item_id: str) -> str | None:
-        row = mapping.filter(pl.col("item_id") == item_id)
-        return row["category_id"][0] if len(row) else None
 
     def _require_fitted(self) -> None:
         if not self._fitted:

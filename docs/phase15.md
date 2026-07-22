@@ -26,6 +26,14 @@ where its per-arm model is still uncertain -- the contextual analogue of Thompso
 uncertainty-proportional exploration. A constant `1.0` first feature is the per-arm
 intercept, so `theta_a[0]` is Phase 14's context-free base rate.
 
+> **Assumption, stated honestly.** LinUCB's regret guarantee assumes the true reward
+> is *linear* in the context (`E[r|x,a] = theta_a . x`). Our simulated world uses
+> `clip(theta.x, 0.01, 0.99)`, which is linear only away from the clip boundaries --
+> so the regret numbers below illustrate the *mechanism* (uncertainty-proportional
+> exploration beats context-blind) rather than certifying the theoretical bound. On
+> real reward surfaces that are non-linear, you'd reach for a kernelized or neural
+> UCB; the bookkeeping is the same, the model class is richer.
+
 ## Code tour
 
 | File | Job |
