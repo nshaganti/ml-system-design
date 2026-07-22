@@ -765,6 +765,21 @@ place. Two honest caveats: relevance is identified only **up to a global scale**
 ranking, not a calibrated CTR), and EM converges at a **linear** rate (60 iterations gave 0.72; ~300 gave 0.92) -- watch the log-likelihood plateau instead of
 guessing the iteration count. See [`docs/phase20.md`](docs/phase20.md).
 
+### Pitfall 13: Shipping an OPE point estimate with no interval (Phases 8, 9, 19)
+
+An off-policy value of "0.28" is not a decision until you know its uncertainty. Part II
+now attaches a **95% bootstrap CI** to every OPE headline (resampling logged rows;
+`phase0/stats.py`) and reports **mean +/- std over seeds/worlds** for the learning
+sweeps. Two lessons fall straight out:
+- **An interval bounds variance, not bias.** At 1.19M rows Phase 8's IPS CI is razor
+  thin *and* sits below the truth; DR's sits above it. A tight CI around a biased
+  estimator is confidently wrong -- only the random-log ground truth reveals it.
+- **A CI that misses a known target is a red flag, not noise.** In Phase 19 the
+  context-free IPS and Direct-Method intervals fall entirely off the truth, exposing
+  structural bias no amount of data would average away.
+Report the interval, then ask *separately* whether the estimator can even be unbiased
+for your policy. See [`docs/phase8.md`](docs/phase8.md), [`docs/phase19.md`](docs/phase19.md).
+
 ---
 
 ## 7. Google's Rules of ML Applied

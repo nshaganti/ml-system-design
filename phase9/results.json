@@ -3,19 +3,31 @@
   "sweep": [
     {
       "n": 1000,
-      "true_value": 0.18054718066613057
+      "n_seeds": 5,
+      "seeds_beating_naive": 0,
+      "true_value": 0.18042112741204086,
+      "true_value_std": 0.00012315755037100394
     },
     {
       "n": 10000,
-      "true_value": 0.19080471742282085
+      "n_seeds": 5,
+      "seeds_beating_naive": 0,
+      "true_value": 0.19150914329842583,
+      "true_value_std": 0.00046566388714398393
     },
     {
       "n": 100000,
-      "true_value": 0.2597854831215872
+      "n_seeds": 5,
+      "seeds_beating_naive": 5,
+      "true_value": 0.26817168140219955,
+      "true_value_std": 0.004542429772952836
     },
     {
       "n": 1186059,
-      "true_value": 0.40685239552891306
+      "n_seeds": 1,
+      "seeds_beating_naive": 1,
+      "true_value": 0.40685239552891306,
+      "true_value_std": 0.0
     }
   ],
   "temperature": 0.05,

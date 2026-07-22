@@ -127,12 +127,16 @@ def group_e(p8: dict) -> str:
     def err(v: float) -> str:
         return f"{abs(v - vt) / vt * 100:.1f}%" if vt else "n/a"
 
-    out = ["| Estimator | Value | Error vs truth |", "|---|---|---|",
-           f"| **Ground truth** (\u03c0 \u00d7 random-log rewards) | {vt:.3f} | -- |",
-           f"| Naive / Direct Method (biased log) | {p8['v_naive']:.3f} | **{err(p8['v_naive'])}** |",
-           f"| IPS | {p8['ips']:.3f} | {err(p8['ips'])} |",
-           f"| **SNIPS** | {p8['snips']:.3f} | **{err(p8['snips'])}** |",
-           f"| Doubly Robust | {p8['doubly_robust']:.3f} | {err(p8['doubly_robust'])} |"]
+    def ci(key: str) -> str:
+        c = p8.get(f"{key}_ci")
+        return f"[{c[0]:.3f}, {c[1]:.3f}]" if c else "--"
+
+    out = ["| Estimator | Value | 95% CI | Error vs truth |", "|---|---|---|---|",
+           f"| **Ground truth** (\u03c0 \u00d7 random-log rewards) | {vt:.3f} | -- | -- |",
+           f"| Naive / Direct Method (biased log) | {p8['v_naive']:.3f} | -- | **{err(p8['v_naive'])}** |",
+           f"| IPS | {p8['ips']:.3f} | {ci('ips')} | {err(p8['ips'])} |",
+           f"| **SNIPS** | {p8['snips']:.3f} | {ci('snips')} | **{err(p8['snips'])}** |",
+           f"| Doubly Robust | {p8['doubly_robust']:.3f} | {ci('doubly_robust')} | {err(p8['doubly_robust'])} |"]
     return "\n".join(out)
 
 
@@ -309,20 +313,28 @@ def group_p(p19: dict) -> str:
                   ("snips", "Contextual SNIPS"), ("dm", "Direct Method"),
                   ("dr", "Doubly Robust")]
     out = [f"**A. OPE** -- estimating the contextual target's true value "
-           f"(**{p19['ope_true']:.4f}**):", "",
-           "| Estimator | Estimate | \\|error\\| |", "|---|---|---|"]
+           f"(**{p19['ope_true']:.4f}**), with 95% CIs over "
+           f"{p19.get('n_worlds', 20)} worlds:", "",
+           "| Estimator | Estimate | 95% CI | \\|error\\| |", "|---|---|---|---|"]
     for key, label in ope_labels:
         e = p19["ope"][key]
-        out.append(f"| {label} | {e['estimate']:.4f} | {e['abs_error_pct']:.1f}% |")
+        lo, hi = e.get("ci95", [float("nan"), float("nan")])
+        out.append(f"| {label} | {e['estimate']:.4f} | [{lo:.4f}, {hi:.4f}] | {e['abs_error_pct']:.1f}% |")
     opl_labels = [("logging", "Logging (context-blind)"),
                   ("context_free", "Learned, context-free"),
                   ("contextual", "Learned, **contextual**"),
                   ("target", "Target (softmax of truth)"),
                   ("skyline", "Skyline (oracle)")]
-    out += ["", "**B. OPL** -- true value of the learned policy:", "",
-            "| Policy | True value |", "|---|---|"]
+    out += ["", "**B. OPL** -- true value of the learned policy (95% CI over worlds):", "",
+            "| Policy | True value | 95% CI |", "|---|---|---|"]
     for key, label in opl_labels:
-        out.append(f"| {label} | {p19['opl'][key]:.4f} |")
+        v = p19["opl"][key]
+        # tolerate both the old float schema and the new {value, ci95} dict
+        if isinstance(v, dict):
+            lo, hi = v.get("ci95", [float("nan"), float("nan")])
+            out.append(f"| {label} | {v['value']:.4f} | [{lo:.4f}, {hi:.4f}] |")
+        else:
+            out.append(f"| {label} | {v:.4f} | -- |")
     return "\n".join(out)
 
 

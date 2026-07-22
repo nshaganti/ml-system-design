@@ -66,11 +66,12 @@ greedily. The *only* thing that changes between the naive and learned policies i
   pi_learned= softmax(random-log rates)       0.4069        +87%
   pi_greedy = argmax(random-log rates)        0.5874       +170%
 
-Data efficiency (learn from N random rows, grade on true value):
-  random-log rows=    1,000  ->  0.1805  (below naive)
-  random-log rows=   10,000  ->  0.1908  (below naive)
-  random-log rows=  100,000  ->  0.2598  (beats naive)
-  random-log rows=1,186,059  ->  0.4069  (beats naive)
+Data efficiency (learn from N random rows, grade on true value; mean +/- std
+over 5 seeds so the sampling noise is visible, not hidden):
+  random-log rows=    1,000  ->  0.1804 +/-0.0001   (0/5 seeds beat naive)
+  random-log rows=   10,000  ->  0.1915 +/-0.0005   (0/5 seeds beat naive)
+  random-log rows=  100,000  ->  0.2682 +/-0.0045   (5/5 seeds beat naive)
+  random-log rows=1,186,059  ->  0.4069             (full log, no sampling)
 ```
 
 ### Reading the numbers like an engineer
@@ -83,6 +84,11 @@ Data efficiency (learn from N random rows, grade on true value):
 - **Bias does not average out.** The naive policy was fit on **1.44M** biased rows;
   it takes only ~**100k** *unbiased* rows to overtake it, and unbiased data keeps
   pulling ahead after that. Volume can't rescue a confounded objective.
+- **Multi-seed makes the crossover honest.** Repeating each subsample under 5 seeds
+  shows the win at 100k is unanimous (5/5) while 1k/10k lose on *every* seed -- so
+  the crossover is a real effect, not one lucky draw. (The std at 1k is tiny
+  because the Bayesian smoothing dominates a small sample -- itself a fair warning
+  that a narrow interval can still be a badly *biased* estimate.)
 - **Smoothing matters.** Turn it off and thinly-sampled items fake perfect rates,
   sending greedy value to a meaningless 1.0 -- a textbook small-sample trap.
 

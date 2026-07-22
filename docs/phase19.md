@@ -34,20 +34,21 @@ per-arm ridge fitter -- DRY):
 `cd phase19 && python run.py` (12 arms, 5-dim context, 8k-row logs, 20 worlds):
 
 ```
-  A. OPE -- estimating the contextual target's TRUE value (0.7568):
-    Estimator                    Estimate     |error|
-    Context-free IPS (P8)          0.5766       23.8%
-    Contextual IPS                 0.7589        0.3%
-    Contextual SNIPS               0.7567        0.0%
-    Direct Method                  0.7438        1.7%
-    Doubly Robust                  0.7561        0.1%
+  A. OPE -- estimating the contextual target's TRUE value (0.7568),
+     95% CI over 20 worlds:
+    Estimator                    Estimate            95% CI     |error|
+    Context-free IPS (P8)          0.5766   [0.5727, 0.5806]     23.8%  <- CI misses truth
+    Contextual IPS                 0.7589   [0.7465, 0.7714]      0.3%
+    Contextual SNIPS               0.7567   [0.7453, 0.7682]      0.0%
+    Direct Method                  0.7438   [0.7341, 0.7535]      1.7%  <- CI misses truth
+    Doubly Robust                  0.7561   [0.7448, 0.7674]      0.1%
 
-  B. OPL -- TRUE value of the learned policy:
-    Logging (context-blind)            0.5725
-    Learned, context-free              0.5753
-    Learned, CONTEXTUAL                0.7362
-    Target (softmax of truth)          0.7568
-    Skyline (oracle)                   0.9332
+  B. OPL -- TRUE value of the learned policy (95% CI over worlds):
+    Logging (context-blind)            0.5725   [0.5710, 0.5741]
+    Learned, context-free              0.5753   [0.5736, 0.5770]
+    Learned, CONTEXTUAL                0.7362   [0.7276, 0.7449]
+    Target (softmax of truth)          0.7568   [0.7452, 0.7684]
+    Skyline (oracle)                   0.9332   [0.9251, 0.9413]
 ```
 
 ### Reading the numbers
@@ -71,6 +72,12 @@ per-arm ridge fitter -- DRY):
   reward model (1.7% bias here); DR adds an IPS correction on the model's residual and
   is unbiased if *either* the model or the propensities are right -- the belt-and-braces
   estimator you want gating a real system.
+- **The 95% CIs (across 20 worlds) make the bias visible.** The contextual IPS/SNIPS/DR
+  intervals all *cover* the truth (0.7568); the context-free IPS `[0.573, 0.581]` and
+  Direct Method `[0.734, 0.754]` intervals sit entirely *off* it. A CI that misses the
+  target isn't noise you can average away -- it's a flag that the estimator is
+  structurally wrong for this policy. (As in Phase 8: an interval bounds variance, not
+  bias.)
 - **OPL: context is the whole point.** Learning off the context-blind log, a
   context-free policy barely improves on the logger (0.5753 vs 0.5725) -- it just
   re-derives the old blind ranking. The **contextual** learned policy hits 0.7362,

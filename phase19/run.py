@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from load_data import load_events
 from signals import POSITIVE_SIGNALS
+from stats import mean_std
 from results_io import save_results
 import contextual_ope as C
 
@@ -140,40 +141,50 @@ def main():
         opl["target"].append(v_true)
 
     v_true_mean = float(np.mean(ope_true))
-    print("\nStep 3/3: Results (means over worlds)...\n")
+    n_w = len(ope_true)
+
+    def ci95(values):
+        """Mean and 95% CI (mean +/- 1.96*SEM) across the N_WORLDS replicates."""
+        m, s = mean_std(values)
+        sem = s / np.sqrt(len(values)) if len(values) else 0.0
+        return m, m - 1.96 * sem, m + 1.96 * sem
+
+    print("\nStep 3/3: Results (means over worlds, 95% CI over the", n_w, "worlds)...\n")
     print("  A. OPE -- estimating the contextual target's TRUE value "
           f"({v_true_mean:.4f}):")
-    print("  " + "=" * 60)
-    print(f"    {'Estimator':<26}{'Estimate':>11}{'|error|':>12}")
-    print("  " + "-" * 60)
+    print("  " + "=" * 74)
+    print(f"    {'Estimator':<26}{'Estimate':>11}{'95% CI':>24}{'|err|':>9}")
+    print("  " + "-" * 74)
     labels = [("cf_ips", "Context-free IPS (P8)"), ("ips", "Contextual IPS"),
               ("snips", "Contextual SNIPS"), ("dm", "Direct Method"),
               ("dr", "Doubly Robust")]
-    results = {"ope_true": v_true_mean, "ope": {}, "opl": {}}
+    results = {"ope_true": v_true_mean, "n_worlds": n_w, "ope": {}, "opl": {}}
     for key, label in labels:
-        est = float(np.mean(ope_est[key]))
+        est, lo, hi = ci95(ope_est[key])
         err = abs(est - v_true_mean) / v_true_mean * 100
-        results["ope"][key] = {"estimate": est, "abs_error_pct": err}
-        print(f"    {label:<26}{est:>11.4f}{err:>11.1f}%")
+        covers = "" if lo <= v_true_mean <= hi else "  <- CI misses truth"
+        results["ope"][key] = {"estimate": est, "abs_error_pct": err, "ci95": [lo, hi]}
+        print(f"    {label:<26}{est:>11.4f}   [{lo:.4f}, {hi:.4f}]{err:>8.1f}%{covers}")
+    print("  " + "=" * 74)
     print("  " + "=" * 60)
 
     print("\n  B. OPL -- TRUE value of the learned policy:")
-    print("  " + "=" * 52)
-    print(f"    {'Policy':<28}{'True value':>13}")
-    print("  " + "-" * 52)
+    print("  " + "=" * 66)
+    print(f"    {'Policy':<28}{'True value':>13}{'95% CI':>24}")
+    print("  " + "-" * 66)
     for key, label in [("logging", "Logging (context-blind)"),
                        ("context_free", "Learned, context-free"),
                        ("contextual", "Learned, CONTEXTUAL"),
                        ("target", "Target (softmax of truth)"),
                        ("skyline", "Skyline (oracle)")]:
-        v = float(np.mean(opl[key]))
-        results["opl"][key] = v
-        print(f"    {label:<28}{v:>13.4f}")
-    print("  " + "=" * 52)
+        v, lo, hi = ci95(opl[key])
+        results["opl"][key] = {"value": v, "ci95": [lo, hi]}
+        print(f"    {label:<28}{v:>13.4f}   [{lo:.4f}, {hi:.4f}]")
+    print("  " + "=" * 66)
 
     cf = results["ope"]["cf_ips"]["abs_error_pct"]
     dr = results["ope"]["dr"]["abs_error_pct"]
-    lift = (results["opl"]["contextual"] / results["opl"]["context_free"] - 1) * 100
+    lift = (results["opl"]["contextual"]["value"] / results["opl"]["context_free"]["value"] - 1) * 100
     print(f"\n  Context-free IPS is off by {cf:.0f}% (it can't see the target is "
           f"contextual); Doubly Robust {dr:.1f}%.")
     print(f"  The contextual learned policy beats the context-free one by {lift:+.0f}% "
@@ -192,7 +203,7 @@ def main():
     print("\nNext steps:")
     print("  - Plug the two-tower user vector (Phase 1) in as the context x.")
     print("  - Use DR as the redeploy gate in Phase 17 to cut its variance.")
-    print("  - Add confidence intervals (bootstrap) around each OPE estimate.\n")
+    print("  - 95% CIs (across worlds) now sit beside every estimate above.\n")
     return results
 
 

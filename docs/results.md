@@ -143,13 +143,13 @@ the honesty of offline evaluation itself.* Ground truth is computable only becau
 KuaiRand ships a uniform-random log.
 
 <!-- AUTOGEN:groupE -->
-| Estimator | Value | Error vs truth |
-|---|---|---|
-| **Ground truth** (π × random-log rewards) | 0.261 | -- |
-| Naive / Direct Method (biased log) | 0.523 | **100.2%** |
-| IPS | 0.244 | 6.4% |
-| **SNIPS** | 0.259 | **0.6%** |
-| Doubly Robust | 0.277 | 6.1% |
+| Estimator | Value | 95% CI | Error vs truth |
+|---|---|---|---|
+| **Ground truth** (π × random-log rewards) | 0.261 | -- | -- |
+| Naive / Direct Method (biased log) | 0.523 | -- | **100.2%** |
+| IPS | 0.244 | [0.241, 0.247] | 6.4% |
+| **SNIPS** | 0.259 | [0.257, 0.262] | **0.6%** |
+| Doubly Robust | 0.277 | [0.274, 0.280] | 6.1% |
 <!-- /AUTOGEN:groupE -->
 
 **Verdict:** the naive offline metric -- the one most teams ship on -- overstates
@@ -454,25 +454,25 @@ computable), averaged over 20 worlds; each logs 8,000 rows from a context-BLIND
 logging policy.*
 
 <!-- AUTOGEN:groupP -->
-**A. OPE** -- estimating the contextual target's true value (**0.7568**):
+**A. OPE** -- estimating the contextual target's true value (**0.7568**), with 95% CIs over 20 worlds:
 
-| Estimator | Estimate | \|error\| |
+| Estimator | Estimate | 95% CI | \|error\| |
+|---|---|---|---|
+| Context-free IPS (Phase 8) | 0.5766 | [0.5727, 0.5806] | 23.8% |
+| Contextual IPS | 0.7589 | [0.7465, 0.7714] | 0.3% |
+| Contextual SNIPS | 0.7567 | [0.7453, 0.7682] | 0.0% |
+| Direct Method | 0.7438 | [0.7341, 0.7535] | 1.7% |
+| Doubly Robust | 0.7561 | [0.7448, 0.7674] | 0.1% |
+
+**B. OPL** -- true value of the learned policy (95% CI over worlds):
+
+| Policy | True value | 95% CI |
 |---|---|---|
-| Context-free IPS (Phase 8) | 0.5766 | 23.8% |
-| Contextual IPS | 0.7589 | 0.3% |
-| Contextual SNIPS | 0.7567 | 0.0% |
-| Direct Method | 0.7438 | 1.7% |
-| Doubly Robust | 0.7561 | 0.1% |
-
-**B. OPL** -- true value of the learned policy:
-
-| Policy | True value |
-|---|---|
-| Logging (context-blind) | 0.5725 |
-| Learned, context-free | 0.5753 |
-| Learned, **contextual** | 0.7362 |
-| Target (softmax of truth) | 0.7568 |
-| Skyline (oracle) | 0.9332 |
+| Logging (context-blind) | 0.5725 | [0.5710, 0.5741] |
+| Learned, context-free | 0.5753 | [0.5736, 0.5770] |
+| Learned, **contextual** | 0.7362 | [0.7276, 0.7449] |
+| Target (softmax of truth) | 0.7568 | [0.7452, 0.7684] |
+| Skyline (oracle) | 0.9332 | [0.9251, 0.9413] |
 <!-- /AUTOGEN:groupP -->
 
 **Verdict:** Part II's estimators go contextual. **(OPE)** the Phase 8 context-free

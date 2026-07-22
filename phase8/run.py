@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from load_data import load_events, load_random_log
 from signals import WEAK
+from stats import bootstrap_ci, fmt_ci
 import ope
 from results_io import save_results
 
@@ -118,6 +119,15 @@ def main():
     dr_v = ope.doubly_robust(pi_probs, beta_probs, rewards, rhat_b_action, dm_value=v_naive)
     ess = ope.effective_sample_size(pi_probs, beta_probs)
 
+    # 95% bootstrap CIs -- an OPE point estimate without an interval is exactly the
+    # footgun Part II warns about. We resample the logged random-log rows.
+    def _dr(pi_p, beta_p, rew, rhat):
+        return ope.doubly_robust(pi_p, beta_p, rew, rhat, dm_value=v_naive)
+
+    _, ips_lo, ips_hi = bootstrap_ci(ope.ips, [pi_probs, beta_probs, rewards], seed=42)
+    _, snips_lo, snips_hi = bootstrap_ci(ope.snips, [pi_probs, beta_probs, rewards], seed=42)
+    _, dr_lo, dr_hi = bootstrap_ci(_dr, [pi_probs, beta_probs, rewards, rhat_b_action], seed=42)
+
     def err(v):
         return abs(v - v_true) / v_true * 100 if v_true else float("nan")
 
@@ -131,6 +141,11 @@ def main():
     print(f"  {'Doubly Robust':<26}{dr_v:>10.5f}{err(dr_v):>20.1f}%")
     print("=" * 62)
     print(f"  Effective sample size: {ess:,.0f} of {len(pi_probs):,} random-log rows")
+    print("\n  95% bootstrap CIs (1000 resamples of the random-log rows):")
+    print(f"    IPS   {fmt_ci(ips_v, ips_lo, ips_hi, 5)}")
+    print(f"    SNIPS {fmt_ci(snips_v, snips_lo, snips_hi, 5)}")
+    print(f"    DR    {fmt_ci(dr_v, dr_lo, dr_hi, 5)}")
+    print(f"    (V_true = {v_true:.5f} -- note whether each interval covers it)")
     print()
     print("Reading the numbers:")
     print("  - The naive/DM estimate uses the BIASED log's reward rates -> it is")
@@ -147,6 +162,9 @@ def main():
         "ips": float(ips_v),
         "snips": float(snips_v),
         "doubly_robust": float(dr_v),
+        "ips_ci": [float(ips_lo), float(ips_hi)],
+        "snips_ci": [float(snips_lo), float(snips_hi)],
+        "doubly_robust_ci": [float(dr_lo), float(dr_hi)],
         "ess": float(ess),
         "n_random_rows": int(len(pi_probs)),
         "n_items": n_items,

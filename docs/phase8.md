@@ -67,6 +67,12 @@ V_naive (DM: pi x BIASED-log reward)    = 0.52266   <- confounded
   SNIPS                        0.25947                 0.6%
   Doubly Robust                0.27698                 6.1%
   Effective sample size: 149,092 of 1,186,059 random-log rows
+
+  95% bootstrap CIs (1000 resamples of the random-log rows):
+    IPS   0.24430 [0.24146, 0.24678]
+    SNIPS 0.25947 [0.25708, 0.26180]
+    DR    0.27698 [0.27438, 0.27953]
+    (V_true = 0.26107)
 ```
 
 ### Reading the numbers like an engineer
@@ -83,6 +89,14 @@ V_naive (DM: pi x BIASED-log reward)    = 0.52266   <- confounded
   the model or the propensities are right.
 - **ESS (149k of 1.19M)** says the estimate rests on ~12% effective weight;
   healthy here, but the number to watch when `pi` diverges from `beta`.
+- **The CIs teach the subtlest lesson: a tight interval is not a correct one.**
+  With 1.19M rows the bootstrap CIs are razor-thin -- and yet IPS's `[0.2415,
+  0.2468]` sits *below* the truth and DR's `[0.2744, 0.2795]` sits *above* it;
+  only SNIPS's interval covers 0.26107. A bootstrap CI measures **variance** (how
+  much the estimate wobbles under resampling), not **bias** (systematic offset from
+  truth). IPS is a touch low from weight noise; DR inherits a pull from its biased
+  reward model. Report the interval *and* remember it can't rescue a biased
+  estimator -- exactly why the random-log ground truth here is so valuable.
 
 ---
 

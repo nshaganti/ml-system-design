@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from load_data import load_events, load_random_log
 from signals import WEAK
+from stats import mean_std
 from results_io import save_results
 
 import learning
@@ -99,18 +100,34 @@ def main():
     print("  policy with genuinely higher TRUE value. Same math, unbiased input.")
 
     print("\nStep 4/4: Data efficiency -- how much unbiased data do we need?")
-    rng = np.random.default_rng(SEED)
+    # Multi-seed: one sample per size hides sampling noise (especially at n=1k),
+    # so we repeat each subsample under several seeds and report mean +/- std.
+    SWEEP_SEEDS = (42, 43, 44, 45, 46)
     sweep = []
     for size in (1_000, 10_000, 100_000, rnd.height):
-        sub = rnd if size >= rnd.height else rnd.sample(size, seed=SEED)
-        r_sub = learning.reward_rate_per_item(
-            sub["item_id"].to_numpy(), sub["reward"].to_numpy(), items, smoothing=SMOOTHING
-        )
-        pi_sub = learning.softmax_policy(r_sub, items, TEMPERATURE)
-        v_sub = learning.policy_value(pi_sub, r_true, items)
-        beats = "beats naive" if v_sub > v_naive else "below naive"
-        sweep.append({"n": int(min(size, rnd.height)), "true_value": v_sub})
-        print(f"  random-log rows={min(size, rnd.height):>9,}  ->  true value={v_sub:.4f}  ({beats})")
+        capped = min(size, rnd.height)
+        # The full log has no sampling variance -- one 'seed' suffices there.
+        seeds = (SEED,) if capped >= rnd.height else SWEEP_SEEDS
+        vals = []
+        for s in seeds:
+            sub = rnd if size >= rnd.height else rnd.sample(size, seed=s)
+            r_sub = learning.reward_rate_per_item(
+                sub["item_id"].to_numpy(), sub["reward"].to_numpy(), items, smoothing=SMOOTHING
+            )
+            pi_sub = learning.softmax_policy(r_sub, items, TEMPERATURE)
+            vals.append(learning.policy_value(pi_sub, r_true, items))
+        mean_v, std_v = mean_std(vals)
+        n_beat = sum(1 for v in vals if v > v_naive)
+        sweep.append({
+            "n": int(capped),
+            "true_value": mean_v,
+            "true_value_std": std_v,
+            "n_seeds": len(vals),
+            "seeds_beating_naive": n_beat,
+        })
+        pm = f"+/-{std_v:.4f} over {len(vals)} seeds" if len(vals) > 1 else "(full log, no sampling)"
+        print(f"  random-log rows={capped:>9,}  ->  true value={mean_v:.4f} {pm}"
+              f"  ({n_beat}/{len(vals)} beat naive)")
     print("  ^ Bias does NOT average out: the naive policy was learned from 1.44M")
     print("    biased rows, yet a policy learned from a fraction of that many UNBIASED")
     print("    rows overtakes it -- and keeps pulling ahead. Only unbiased data fixes")
