@@ -284,10 +284,30 @@ def group_n(p17: dict) -> str:
     return "\n".join(out)
 
 
+def group_o(p18: dict) -> str:
+    rows = [
+        ("Popularity", p18["popularity"]),
+        ("Co-visitation (Phase 7)", p18["covisitation"]),
+        ("GRU4Rec (Phase 10)", p18["gru4rec"]),
+        ("SASRec", p18["sasrec"]),
+    ]
+    metrics = [("recall", "Recall@20"), ("mrr", "MRR@20"), ("ndcg", "NDCG@20")]
+    best = {m: max(rows, key=lambda r: r[1][m])[0] for m, _ in metrics}
+    out = ["| Method | " + " | ".join(lbl for _, lbl in metrics) + " |",
+           "|---|" + "---|" * len(metrics)]
+    for label, vals in rows:
+        cells = []
+        for m, _ in metrics:
+            c = f"{vals[m]:.4f}"
+            cells.append(f"**{c}**" if label == best[m] else c)
+        out.append(f"| {label} | " + " | ".join(cells) + " |")
+    return "\n".join(out)
+
+
 # --------------------------------------------------------------- main
 
 def build(text: str) -> str:
-    p = {n: load(n) for n in range(18)}
+    p = {n: load(n) for n in range(19)}
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -316,6 +336,8 @@ def build(text: str) -> str:
         text = replace_block(text, "groupM", group_m(p[16]))
     if p[17]:
         text = replace_block(text, "groupN", group_n(p[17]))
+    if p[18]:
+        text = replace_block(text, "groupO", group_o(p[18]))
     return text
 
 

@@ -45,7 +45,7 @@ def _chart(canvas_id: str, height: int = 260) -> str:
 
 
 def build() -> str:
-    p = {n: load(n) for n in range(18)}
+    p = {n: load(n) for n in range(19)}
     charts_js: list[str] = []
     cards: list[str] = []
 
@@ -400,6 +400,31 @@ def build() -> str:
                        y: {{ title: {{ display: true, text: 'true deployed value' }} }} }} }}
         }});""")
 
+    # --- Group O: SASRec sequence model (Phase 18) ---------------------
+    if p[18]:
+        cards.append(_card(
+            "Group O - SASRec vs GRU4Rec vs co-visitation vs popularity (Phase 18)",
+            _chart("chartO"),
+            "Recall@20 on the identical leave-one-out protocol as Phases 7 & 10. Does "
+            "self-attention finally beat the count-based baseline on this catalog? "
+            "Both neural models trained on identical pairs/epochs.",
+        ))
+        methods = [("Popularity", "popularity"), ("Co-visitation", "covisitation"),
+                   ("GRU4Rec", "gru4rec"), ("SASRec", "sasrec")]
+        labels = [m[0] for m in methods]
+        vals = [round(p[18][m[1]]["recall"], 4) for m in methods]
+        charts_js.append(f"""
+        new Chart(document.getElementById('chartO'), {{
+          type: 'bar',
+          data: {{
+            labels: {labels},
+            datasets: [{{ label: 'Recall@20', data: {vals},
+              backgroundColor: ['#9ca3af', '#16a34a', '#2563eb', '#f59e0b'] }}]
+          }},
+          options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ display: false }} }},
+            scales: {{ y: {{ beginAtZero: true, title: {{ display: true, text: 'Recall@20' }} }} }} }}
+        }});""")
+
     # --- serving + gate summary tiles (Phase 3, 4) ----------------------
     tiles = []
     if p[3]:
@@ -456,7 +481,7 @@ def build() -> str:
     {"".join(cards)}
 
     <footer class="text-center text-sm text-slate-500 pt-4">
-      Part I (Phases 0-7, +10, 12-13): build a recommender with production discipline.
+      Part I (Phases 0-7, +10, 12-13, 18): build a recommender with production discipline.
       Part II (Phases 8-9, 11, 14-17): prove the metric was biased, fix the learning,
       debias positions, explore (globally, per-user), and close + safety-gate the loop.
     </footer>

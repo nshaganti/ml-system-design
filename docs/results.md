@@ -409,6 +409,37 @@ action can't blow up the estimate (Phase 11's variance guard). See
 
 ---
 
+## Group O -- Does self-attention beat co-visitation? SASRec (Phase 18)
+
+*Part I honesty loose end. Comparable within the group -- four methods on the
+IDENTICAL leave-one-out next-item protocol, split, and test cases as Phases 7 and 10.
+Both neural models trained on the identical pairs (300k) and epochs (20), so SASRec
+vs GRU4Rec is a clean comparison.*
+
+<!-- AUTOGEN:groupO -->
+| Method | Recall@20 | MRR@20 | NDCG@20 |
+|---|---|---|---|
+| Popularity | 0.0495 | 0.0123 | 0.0203 |
+| Co-visitation (Phase 7) | **0.0802** | **0.0200** | **0.0330** |
+| GRU4Rec (Phase 10) | 0.0617 | 0.0143 | 0.0243 |
+| SASRec | 0.0229 | 0.0035 | 0.0076 |
+<!-- /AUTOGEN:groupO -->
+
+**Verdict:** Phase 10 found GRU4Rec *lost* to co-visitation; Phase 18 asked whether
+self-attention closes the gap. It does not -- **SASRec finishes last, below even
+popularity** (-71% vs co-visitation, -63% vs GRU4Rec). This is not a broken model: it
+nails a trivial next-item pattern in a smoke test, and it trained for *more* epochs
+than GRU4Rec needed (its loss was still descending at epoch 20). The finding is the
+honest one -- **a data-hungry transformer can't beat a count-based method on this
+small, dense catalog under a practical budget.** SASRec shines on large, sparse
+catalogs with long histories; KuaiRand-Pure (~7.5k items, dense feedback, 300k pairs)
+is the opposite regime, so co-visitation's simple item-item co-occurrence wins and
+GRU4Rec's lighter inductive bias beats attention's. Same lesson as Phases 2, 6, 10,
+and 12: **complexity has to earn its place on YOUR data.** See
+[`phase18.md`](phase18.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -431,6 +462,7 @@ action can't blow up the estimate (Phase 11's variance guard). See
 | 15 Contextual bandit | **personalized exploration** (LinUCB) | -92% regret vs context-free, 62% per-user-best | **up** |
 | 16 Closing the loop | **the full cycle** (explore->learn->redeploy) | exploration 41% -> 96% of skyline; IPS a wash | **up** |
 | 17 Real ctx + safety gate | **safe, real-context redeploys** | gate helps clean (67 vs 59%) & blocks a bug (worst 0.61 vs 0.57) | **up** |
+| 18 SASRec sequence model | **an honest negative** | self-attention finishes LAST (-71% vs co-vis) on this dense catalog | **down** |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline
