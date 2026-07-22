@@ -618,15 +618,23 @@ loop's worst deploy craters to 0.57 while the gated loop holds 0.61. A safety ga
 priced in the good case and cashed in the bad. Details:
 [`docs/phase17.md`](docs/phase17.md).
 
-### Phase 18 -- SASRec: an Honest Negative
+### Phase 18 -- SASRec: a Caught Bug and an Honest Negative
 
 Closes Phase 10's loose end: does **self-attention** beat the co-visitation baseline
-that beat GRU4Rec? On the identical leave-one-out protocol, **no** -- SASRec finishes
-last, below popularity (Recall@20 0.023 vs co-visitation's 0.080), despite a verified
-sound model and a generous budget. A data-hungry transformer starves on a small
-(~7.5k-item), dense catalog where co-occurrence is a brutally strong baseline. The
-fourth honest negative in the project (with Phases 2, 6, 10): **complexity must earn
-its place on YOUR data.** Details: [`docs/phase18.md`](docs/phase18.md).
+that beat GRU4Rec? On the identical leave-one-out protocol, SASRec **beats popularity
+(+30%) and edges out GRU4Rec (+10%)** -- the best *neural* model here -- but **still
+loses to co-visitation** (Recall@20 0.065 vs 0.080, -18%): on a small (~7.5k-item),
+dense catalog, item-item co-occurrence is a brutally strong, data-efficient baseline.
+The honest negative (counting wins) stands, but the sharper story is *how* the number
+was corrected. An earlier version reported SASRec **last, below popularity** (0.023)
+and explained it away as "data-hungry, wrong regime" -- a tidy negative that turned out
+to be a **NaN bug**: `recommend()` runs `forward` under `eval()/no_grad`, and PyTorch's
+fused TransformerEncoder path returned all-NaN on left-padded input, so `topk` returned
+index order. Every contract test passed because they ran train-mode `forward`, never
+the inference path; a belated learning test caught it and the fix (disable the fused
+kernel -- train == serve, Rule 32) lifted SASRec 0.023 -> 0.065. **The lesson: test the
+serving path in the mode it runs, and reproduce a surprising result through the real
+code path before you narrate it.** Details: [`docs/phase18.md`](docs/phase18.md).
 
 ### Phase 19 -- Contextual OPE/OPL
 

@@ -43,7 +43,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase10.md`](docs/phase10.md) -- a GRU4Rec **sequence model** on the same protocol: beats popularity but **loses to co-visitation** by ~15% (fancier isn't automatically better).
 - [`docs/phase12.md`](docs/phase12.md) -- the **two-stage integration** (two-tower retrieval -> LR rerank): the textbook architecture **loses to two-tower alone** (-19%) because the popularity-flavored ranker undoes personalization.
 - [`docs/phase13.md`](docs/phase13.md) -- **stage 2 that earns its place**: feed the two-tower similarity score into the LR and the two-stage system **beats two-tower alone** (+3.3%). Two stages beat one only once stage 2 can see stage 1.
-- [`docs/phase18.md`](docs/phase18.md) -- **SASRec** (self-attention) on the same protocol: finishes **last, below popularity** (-71% vs co-visitation). A verified-sound model that a small, dense catalog starves -- attention is data-hungry, and complexity must earn its place.
+- [`docs/phase18.md`](docs/phase18.md) -- **SASRec** (self-attention) on the same protocol: beats GRU4Rec (+10%) and popularity (+30%), still loses to co-visitation (-18%). Its original "finishes last" number was a **NaN inference bug** a belated learning test caught -- the durable lesson: test the serving path in the mode it runs (`eval()/no_grad`), not just training.
 
 **Part II -- causality-aware evaluation:**
 
@@ -170,7 +170,7 @@ cd phase14 && python run.py  # PART II -- bandit loop: Thompson -48% regret + fu
 cd phase15 && python run.py  # PART II -- contextual bandit (LinUCB): -92% regret, personalized
 cd phase16 && python run.py  # PART II -- CAPSTONE: closed loop, exploration 41% -> 96% of skyline
 cd phase17 && python run.py  # PART II -- real contexts + OPE safety gate (blocks a poisoned batch)
-cd phase18 && python run.py  # SASRec: self-attention finishes LAST here (attention is data-hungry)
+cd phase18 && python run.py  # SASRec: beats GRU4Rec/popularity, still loses to co-vis (an eval-path NaN bug once made it look last)
 cd phase8 && python run.py   # PART II -- OPE: naive metric +100% biased vs SNIPS 0.6%
 cd phase9 && python run.py   # PART II -- OPL: policy learned on unbiased data +87% true value
 cd phase19 && python run.py  # PART II -- contextual OPE/OPL: context-free eval 24% off; contextual OPL +28%
@@ -225,7 +225,7 @@ CI runs the same suite on every push and pull request.
 - [x] Phase 10 -- GRU4Rec sequence model (beats popularity, loses to co-visitation)
 - [x] Phase 12 -- two-stage retrieval + ranking integration (honest: loses to two-tower alone; the ranker must add signal)
 - [x] Phase 13 -- two-tower score as a ranking feature (stage 2 earns its place: two-stage beats two-tower alone +3.3%)
-- [x] Phase 18 -- SASRec sequence model (self-attention finishes last, below popularity: attention is data-hungry, complexity must earn its place)
+- [x] Phase 18 -- SASRec sequence model (beats GRU4Rec +10% & popularity +30%, still loses to co-visitation -18%; a NaN inference bug that made it "finish last" was caught by a belated learning test -- test the serving path in the mode it runs)
 
 **Part II -- causality-aware evaluation:**
 

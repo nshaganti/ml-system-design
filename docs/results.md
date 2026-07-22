@@ -425,24 +425,27 @@ vs GRU4Rec is a clean comparison.*
 <!-- AUTOGEN:groupO -->
 | Method | Recall@20 | MRR@20 | NDCG@20 |
 |---|---|---|---|
-| Popularity | 0.0495 | 0.0123 | 0.0203 |
-| Co-visitation (Phase 7) | **0.0802** | **0.0200** | **0.0330** |
-| GRU4Rec (Phase 10) | 0.0617 | 0.0143 | 0.0243 |
-| SASRec | 0.0229 | 0.0035 | 0.0076 |
+| Popularity | 0.0500 | 0.0127 | 0.0206 |
+| Co-visitation (Phase 7) | **0.0798** | **0.0203** | **0.0331** |
+| GRU4Rec (Phase 10) | 0.0594 | 0.0138 | 0.0236 |
+| SASRec | 0.0652 | 0.0149 | 0.0256 |
 <!-- /AUTOGEN:groupO -->
 
 **Verdict:** Phase 10 found GRU4Rec *lost* to co-visitation; Phase 18 asked whether
-self-attention closes the gap. It does not -- **SASRec finishes last, below even
-popularity** (-71% vs co-visitation, -63% vs GRU4Rec). This is not a broken model: it
-nails a trivial next-item pattern in a smoke test, and it trained for *more* epochs
-than GRU4Rec needed (its loss was still descending at epoch 20). The finding is the
-honest one -- **a data-hungry transformer can't beat a count-based method on this
-small, dense catalog under a practical budget.** SASRec shines on large, sparse
-catalogs with long histories; KuaiRand-Pure (~7.5k items, dense feedback, 300k pairs)
-is the opposite regime, so co-visitation's simple item-item co-occurrence wins and
-GRU4Rec's lighter inductive bias beats attention's. Same lesson as Phases 2, 6, 10,
-and 12: **complexity has to earn its place on YOUR data.** See
-[`phase18.md`](phase18.md).
+self-attention closes the gap. Corrected answer: **SASRec beats popularity (+30%) and
+edges out GRU4Rec (+10%), but still loses to co-visitation (-18%)** -- attention is the
+best *neural* model here, yet a count-based item-item baseline still wins on this
+small, dense catalog (~7.5k items, dense feedback, 300k pairs), where co-occurrence is
+brutally strong and data-efficient. **Correction:** an earlier version reported SASRec
+*last, below popularity* (0.0229, "-71%") and explained it away as "attention is
+data-hungry." That was a **bug**, not a result: `recommend()` runs forward under
+`eval()/no_grad`, hitting PyTorch's fused TransformerEncoder path, which returned
+**all-NaN** on left-padded input, so `topk` returned index order. Contract tests
+(train-mode only) never ran the inference path; a belated learning test caught it, and
+the fix (disable the fused kernel; train==serve, Rule 32) lifted SASRec 0.0229 ->
+0.0652. The honest-negative (co-visitation wins) survives, but the durable lesson is
+**test the serving path in the mode it runs** -- a tidy negative result masked a NaN
+bug. See [`phase18.md`](phase18.md).
 
 ---
 
@@ -542,7 +545,7 @@ feed the Phase 2 ranker -- so you can debias production traffic in place. See
 | 15 Contextual bandit | **personalized exploration** (LinUCB) | -92% regret vs context-free, 62% per-user-best | **up** |
 | 16 Closing the loop | **the full cycle** (explore->learn->redeploy) | exploration 41% -> 96% of skyline; IPS a wash | **up** |
 | 17 Real ctx + safety gate | **safe, real-context redeploys** | gate helps clean (67 vs 59%) & blocks a bug (worst 0.61 vs 0.57) | **up** |
-| 18 SASRec sequence model | **an honest negative** | self-attention finishes LAST (-71% vs co-vis) on this dense catalog | **down** |
+| 18 SASRec sequence model | **a caught bug + honest negative** | beats GRU4Rec (+10%) & popularity (+30%), still loses to co-vis (-18%); "finishes last" was a NaN inference bug a learning test caught | up vs GRU/pop, down vs co-vis |
 | 19 Contextual OPE/OPL | **per-user off-policy eval & learning** | context-free OPE 24% off; contextual policy +28% over context-free | **up** |
 | 20 Joint EM debiasing | **debias production logs in place** | EM 0.923 Spearman = randomization IPW 0.937, no random bucket | **up** |
 

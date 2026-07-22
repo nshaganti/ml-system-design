@@ -222,6 +222,27 @@ off-policy estimators (SNIPS, doubly robust) to screen policies before spending
 live traffic on them. Watch effective sample size when the new policy drifts from
 the logging one.
 
+## 20. Test the serving path, in the mode it serves in -- a green suite proved nothing (Part I)
+
+Phase 18's SASRec "finished last, below popularity" -- a clean honest-negative we
+explained away as "attention is data-hungry." It was a **bug**. `recommend()` runs
+`forward` under `eval()` + `no_grad`, which trips PyTorch's fused TransformerEncoder
+fast path; on left-padded input that path returned **all-NaN**, so `topk` returned
+items in index order. The model was serving garbage on nearly every session -- while
+its **training loss went to ~0** and every unit test passed. The tests passed because
+they all ran `forward` in *train* mode and asserted shapes/masks; none ran the
+`eval()/no_grad` path the model actually serves on. A belated *learning test* (train a
+tiny pattern, then predict it through `recommend()`) ran that path for the first time
+and exposed the NaN. Fixing it (train == serve, Rule 32) lifted SASRec from 0.023 to
+0.065 -- it beats GRU4Rec and popularity, and the honest negative (co-visitation still
+wins) survived on real numbers.
+
+**Reflex:** unit-test the **inference path** in the exact mode it runs (`eval()`,
+`no_grad`, real padding), not just the training forward pass. A model that trains to
+loss ~0 can still serve NaN. And when a result is *conveniently* tidy -- a
+satisfying negative that confirms your prior -- reproduce it through the real serving
+code before you write the narrative. The neat story is where bugs hide.
+
 ---
 
 ## The meta-lesson

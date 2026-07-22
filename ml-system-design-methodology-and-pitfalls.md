@@ -698,7 +698,7 @@ add accuracy** -- the payoff curve is non-monotonic. Sorted by honest outcome:
 | Near-realtime freshness (P6) | **flat** -- no measurable gain here |
 | GRU4Rec sequence model (P10) | **-15%** vs co-visitation -- lost |
 | Naive two-stage integration (P12) | **-18.7%** vs two-tower alone -- lost |
-| SASRec self-attention (P18) | **last, below popularity** -- data-hungry, wrong regime |
+| SASRec self-attention (P18) | **+30% vs popularity, +10% vs GRU4Rec, -18% vs co-vis** -- best neural model, still loses to counting ("last" was a NaN eval-path bug) |
 
 Part II's real gains came from **causality and exploration, not model size**. The
 engineering skill is telling which is which *on your data* -- see

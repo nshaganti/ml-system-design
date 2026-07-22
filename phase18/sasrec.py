@@ -81,6 +81,19 @@ class SASRec(nn.Module):
         # Causal mask: position i may attend only to positions <= i.
         causal = torch.triu(torch.ones(t, t, dtype=torch.bool, device=sequences.device), diagonal=1)
         pad_mask = sequences == PAD_IDX                      # (B, T) True where PAD
+
+        # Correctness > speed (Rule 32: train == serve). PyTorch's TransformerEncoder
+        # "fast path" (taken under eval() + no_grad) returns all-NaN for fully-masked
+        # query rows -- which left-padding ALWAYS creates: a leading PAD position, under
+        # the causal + key-padding masks, is allowed to attend to nothing, and the fused
+        # kernel propagates that NaN across the whole row. Because recommend() runs under
+        # eval()/no_grad, topk() then saw NaN logits and returned items in index order --
+        # NOT what the model scored. (train() forward is finite and learns fine, so the
+        # old shape/finite contract tests never caught it.) Disabling the fused kernel
+        # makes train and serve take the identical, correct math path. CPU-cheap here.
+        if hasattr(torch.backends, "mha"):
+            torch.backends.mha.set_fastpath_enabled(False)
+
         out = self.encoder(x, mask=causal, src_key_padding_mask=pad_mask)   # (B, T, E)
         last = out[:, -1, :]                                 # most recent position
         return self.output(last)                             # (B, n)

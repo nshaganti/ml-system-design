@@ -28,50 +28,75 @@ leave-one-out protocol as Phases 7/10):
 
 ```
   Metric       Popularity    Co-vis   GRU4Rec    SASRec   SAS vs covis
-  Recall@20        0.0495    0.0802    0.0617    0.0229          -71%
-  MRR@20           0.0123    0.0200    0.0143    0.0035          -83%
-  NDCG@20          0.0203    0.0330    0.0243    0.0076          -77%
+  Recall@20        0.0500    0.0798    0.0594    0.0652          -18%
+  MRR@20           0.0127    0.0203    0.0138    0.0149          -27%
+  NDCG@20          0.0206    0.0331    0.0236    0.0256          -23%
 ```
 
-**SASRec finishes last -- below even popularity.** That's the honest result, and it
-is *not* a broken model.
+**SASRec is the best neural model here -- it beats popularity (+30%) and edges out
+GRU4Rec (+10%) -- but still loses to plain co-visitation (-18%).** Self-attention
+extracts more session signal than the GRU, yet a count-based item-item baseline is
+still the one to beat on this small, dense catalog.
 
-### Why this is a real finding, not a bug
+> ### An honest correction (read this -- it's the real lesson of Phase 18)
+>
+> An earlier version of this page reported SASRec finishing **last, below popularity**
+> (Recall@20 **0.0229**, "-71% vs co-visitation"), and confidently explained it away as
+> "attention is data-hungry, wrong regime." **That was a bug, not a result.**
+>
+> `SASRec.recommend()` runs `forward` under `eval()` + `torch.no_grad()`, which trips
+> PyTorch's *fused TransformerEncoder fast path*. On left-padded input, the leading
+> all-PAD query rows are fully masked (causal + key-padding), and the fused kernel
+> returns **all-NaN** for the whole row -- so `topk` saw NaN logits and returned items
+> in index order. `run.py` backs off to popularity only when a session is *entirely*
+> PAD, so every session shorter than `max_len=20` (i.e. essentially all of them) was
+> scored on NaN garbage. Confirmed on the pinned `torch==2.8.0`.
+>
+> Why did it hide for so long? Because `forward()` in **train** mode is finite and the
+> model learns fine -- so the shape/PAD/mask *contract* tests all passed. They never
+> exercised the `eval()/no_grad` **inference** path that `recommend()` actually uses.
+> A belated **learning test** (parity with Phase 10's GRU4Rec overfit test) ran that
+> path for the first time, got index-order garbage from a model whose training loss was
+> ~0, and exposed the NaN. The fix (`phase18/sasrec.py` disables the fused kernel so
+> train and serve take the identical, correct math path -- Rule 32) lifted SASRec from
+> 0.0229 to **0.0652**. Every number on this page is now from the *fixed* model.
+>
+> The meta-lesson is sharper than the original "honest negative": **a green test suite
+> proved nothing about the path that ships. Test the inference path, in the mode it
+> runs in.**
 
-- **The model is sound.** In a smoke test it learns a trivial "next = f(last)" pattern
-  to 100% training accuracy in seconds. The architecture, masking, and training loop
-  all work.
-- **It was not under-resourced relative to the winner.** SASRec trained for *20
-  epochs* -- more than GRU4Rec needed -- and its loss was *still descending* at the
-  end. It is data/compute-hungry, and we gave it a practical CPU budget, not an
-  infinite one.
-- **The regime is wrong for attention.** SASRec shines on **large, sparse** catalogs
-  with **long** histories, where reading distant items directly pays off.
+### Why co-visitation still wins (the finding that survived the fix)
+
+Even with SASRec working correctly, the ranking is `co-vis > SASRec > GRU4Rec >
+popularity`. The count-based baseline holds:
+
+- **The regime favours co-occurrence.** SASRec shines on **large, sparse** catalogs
+  with **long** histories, where attending to distant items directly pays off.
   KuaiRand-Pure is the opposite: ~7.5k items, dense feedback, short sessions, 300k
-  pairs. In that regime a 7,540-way softmax starves a transformer, while
-  co-visitation's item-item co-occurrence is a brutally strong, data-efficient
-  baseline and GRU4Rec's lighter inductive bias extracts more from the same data.
-
-### The debugging story (an honest process note)
-
-The first SASRec run scored *below popularity* and looked broken. Rather than ship it
-or blindly tune, the fix was diagnosis: a smoke test proved the model could learn, so
-the problem was training, not code. An `embedding * sqrt(d)` scaling I had added
-actually *hurt* and was removed; positions were switched to recency-based; the budget
-was raised to 20 epochs. The result improved but the verdict held. **The point of the
-exercise was never to make attention win -- it was to measure it honestly.** Forcing a
-"SASRec wins" conclusion by endless tuning would have been the exact anti-pattern this
-whole project argues against.
+  pairs. There, item-item co-occurrence is a brutally strong, data-efficient baseline.
+- **But attention did earn its keep over the GRU.** SASRec beating GRU4Rec (+10%) is
+  the expected ordering finally showing up once the inference path is correct -- direct
+  attention extracts a bit more from the same session than a single recurrent state.
+- **Compute-bounded, not broken.** SASRec trained for 20 epochs (more than GRU4Rec
+  needed) with its loss still descending; a larger budget would likely narrow the gap
+  to co-visitation further -- but "keep tuning until the transformer wins" is exactly
+  the anti-pattern this project argues against. We report the fixed-budget result.
 
 ## What Phase 18 taught us
 
-1. **Newer and fancier is not better by default.** SASRec is state-of-the-art on the
-   right data; on the wrong data it loses to counting co-occurrences.
-2. **Match the model to the data regime.** Attention buys long-range, sparse-catalog
-   power you don't need when the catalog is small and feedback is dense.
-3. **Diagnose before you tune.** A 3-second smoke test separated "broken" from
-   "underfit" and stopped a wild-goose chase.
+1. **Test the path that ships, in the mode it ships in.** The bug survived a full
+   contract-test suite because every test ran `forward()` in train mode; none ran the
+   `eval()/no_grad` path `recommend()` uses. A model that trains to loss ~0 can still
+   serve NaN. (See the correction box above.)
+2. **A confident negative result can be a hidden bug.** "SASRec finishes last, below
+   popularity" *felt* like a satisfying honest-negative -- which is exactly why it went
+   unquestioned. The tidy story was the trap. Reproduce the surprising number through
+   the real code path before you explain it.
+3. **Newer and fancier is still not better by default.** Corrected, SASRec beats the
+   GRU and popularity but *still* loses to counting co-occurrences on this data.
+   Complexity has to earn its place on YOUR data, measured on a fixed protocol -- not
+   assumed from a paper's leaderboard, and not conceded to a bug either.
 
-This is the fourth honest negative in the project (after Phases 2, 6, 10, and the
-naive Phase 12), and together they are its spine: **complexity has to earn its place
-on YOUR data, measured on a fixed protocol -- not assumed from a paper's leaderboard.**
+Alongside Phases 2, 6, 10, and the naive Phase 12, this remains an honest result --
+co-visitation wins -- but Phase 18's lasting contribution is the correction itself:
+**trustworthy evaluation means the test harness has to touch the serving path.**
