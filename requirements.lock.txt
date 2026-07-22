@@ -1,0 +1,27 @@
+# Pinned dependency lock — exact versions this project was last run/tested with.
+# ---------------------------------------------------------------------------
+# WHY THIS FILE EXISTS
+# requirements.txt uses >= ranges (human-readable intent). Those ranges do NOT
+# reproduce numbers: a newer torch/numpy can shift neural results and even flip
+# a threshold-based headline. For reproducible runs and CI, install from THIS
+# lock instead:
+#
+#   pip install -i https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/external-pypi/simple \
+#       -r requirements.lock.txt
+#
+# Regenerate after an intentional upgrade:  pip freeze | grep -Ei \
+#   'polars|duckdb|numpy|scikit-learn|matplotlib|torch|mlflow|pytest|scipy|pandas|pyarrow'
+#
+# Pin generated 2026-07 from the working environment.
+
+polars==1.36.1
+duckdb==1.4.5
+numpy==1.26.4
+scikit-learn==1.6.1
+matplotlib==3.9.4
+torch==2.8.0
+mlflow==3.1.4
+pytest==8.4.2
+scipy==1.13.1
+pandas==2.3.3
+pyarrow==20.0.0

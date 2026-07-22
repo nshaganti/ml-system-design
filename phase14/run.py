@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from load_data import load_events
 from signals import POSITIVE_SIGNALS
 from results_io import save_results
+from repro import set_global_seed
 import bandit as B
 
 PHASE_DIR = Path(__file__).parent
@@ -71,6 +72,7 @@ def _downsample(curve: np.ndarray, points: int) -> list[float]:
 
 
 def main():
+    set_global_seed()   # reproducible bandit draws
     print("\n=== Phase 14: The Explore-and-Learn Loop (bandit) ===\n")
 
     print(f"Step 1/3: Build {N_ARMS} arms from REAL KuaiRand per-item rates...")

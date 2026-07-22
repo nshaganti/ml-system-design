@@ -189,7 +189,7 @@ Inspect Phase 1 training runs with `mlflow ui --port 5000`.
 ## Running the tests
 
 ```bash
-pytest tests/ -q     # 126 tests, tiny in-memory data, no dataset download required
+pytest tests/ -q     # ~180 tests, tiny in-memory data, no dataset download required
 ```
 
 CI runs the same suite on every push and pull request.

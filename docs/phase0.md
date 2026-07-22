@@ -70,17 +70,23 @@ care which dataset produced them.
 
 ### 2. Validate loudly (Rule 10 preview)
 
+The loader doesn't silently accept whatever it's handed. The KuaiRand adapter maps
+raw signals into the canonical `WEAK/MEDIUM/STRONG` taxonomy, drops rows with null
+critical fields, and **prints the resulting signal mix on every load** so a skewed or
+broken import is visible immediately:
+
 ```python
-def _validate_events(df):
-    unknown = found_types - known_types
-    if unknown:
-        raise ValueError(f"Unknown event types found: {unknown}")
-    # ...fail on nulls in critical columns
+# phase0/data_sources/kuairand.py (load_events)
+events = _to_signals(pl.concat(frames))          # canonical taxonomy mapping
+counts = events["event_type"].value_counts()
+print(f"[load_data] (kuairand) {len(events):,} standard-log events "
+      f"(WEAK/MEDIUM/STRONG). Signal mix: {dict(...)}")
 ```
 
-In a notebook you'd notice bad data by eyeballing a `head()`. In production
-nobody's watching, so the code has to shout. This is the seed of the monitoring
-mindset that dominates later phases.
+Unknown dataset names and empty split windows raise loudly too (`load_data.py`,
+`heuristic_ranker.py`). In a notebook you'd notice bad data by eyeballing a `head()`.
+In production nobody's watching, so the code has to shout. This is the seed of the
+monitoring mindset that dominates later phases.
 
 ---
 

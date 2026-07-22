@@ -1,5 +1,8 @@
 # Install via Walmart Artifactory:
 # pip install -i https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/external-pypi/simple -r requirements.txt
+#
+# These are >= *intent* ranges. For REPRODUCIBLE runs/CI (pinned ==) install
+# requirements.lock.txt instead -- neural numbers depend on exact torch/numpy.
 
 # --- Phase 0 (data + heuristic baseline) ---
 polars>=0.20.0

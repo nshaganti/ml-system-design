@@ -37,6 +37,7 @@ from train import train
 from index import EmbeddingIndex
 from ranker import TwoTowerRanker
 from results_io import save_results
+from repro import set_global_seed
 
 PHASE_DIR = Path(__file__).parent
 
@@ -65,6 +66,7 @@ def _load_phase0_baseline() -> dict:
 
 
 def main():
+    set_global_seed()   # pin Python/NumPy/PyTorch RNGs for reproducible weights
     print("\n=== Phase 1: Two-Tower Candidate Generation ===\n")
 
     # ── Step 1: Load data ────────────────────────────────────────────────────

@@ -33,6 +33,7 @@ from load_data import load_events
 from evaluate import temporal_split
 from metrics import recall_at_k, ndcg_at_k, mean
 from results_io import save_results
+from repro import set_global_seed
 
 from covisitation import CoVisitationRecommender, sessionize, session_item_lists
 from session_eval import build_test_cases, reciprocal_rank   # reuse Phase 7's protocol (DRY)
@@ -89,6 +90,7 @@ def evaluate(recommend_fn, cases) -> dict:
 
 
 def main():
+    set_global_seed()   # reproducible torch weight init + shuffling
     print("\n=== Phase 10: GRU4Rec vs Co-Visitation vs Popularity ===\n")
 
     print("Step 1/5: Loading + temporal split...")

@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from load_data import load_events
 from signals import POSITIVE_SIGNALS
 from results_io import save_results
+from repro import set_global_seed
 import loop as LP
 
 PHASE_DIR = Path(__file__).parent
@@ -73,6 +74,7 @@ def _make_world(base_rates: np.ndarray, rng: np.random.Generator):
 
 
 def main():
+    set_global_seed()   # reproducible loop
     print("\n=== Phase 16: Closing the Loop (explore -> learn -> redeploy) ===\n")
 
     print(f"Step 1/3: Build the contextual world ({N_ARMS} arms, real KuaiRand rates)...")

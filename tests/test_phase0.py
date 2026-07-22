@@ -13,6 +13,36 @@ import polars as pl
 
 from evaluate import temporal_split, recall_at_k
 from heuristic_ranker import HeuristicRanker, EVENT_WEIGHTS
+from load_data import get_item_snapshot
+
+
+# ---------------------------------------------------------------- get_item_snapshot
+
+
+def test_item_snapshot_is_point_in_time_correct():
+    # Two timestamped values for the same (item, property). A lookup as-of t=150
+    # must see the value set at t=100, NOT the future value set at t=200.
+    props = pl.DataFrame({
+        "timestamp_ms": [100, 200, 100],
+        "item_id": ["a", "a", "b"],
+        "property": ["price", "price", "price"],
+        "value": ["10", "20", "5"],
+    })
+    snap = get_item_snapshot(props, as_of_timestamp_ms=150).sort("item_id")
+    prices = dict(zip(snap["item_id"], snap["price"]))
+    assert prices["a"] == "10"      # the future 20 is invisible at t=150
+    assert prices["b"] == "5"
+
+
+def test_item_snapshot_takes_most_recent_past_value():
+    props = pl.DataFrame({
+        "timestamp_ms": [100, 200],
+        "item_id": ["a", "a"],
+        "property": ["price", "price"],
+        "value": ["10", "20"],
+    })
+    snap = get_item_snapshot(props, as_of_timestamp_ms=999)
+    assert snap["price"][0] == "20"  # both are in the past -> newest wins
 
 
 # ---------------------------------------------------------------- temporal_split

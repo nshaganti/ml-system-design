@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from load_data import load_events
 from signals import STRONG, MEDIUM
 from results_io import save_results
+from repro import set_global_seed
 import safe_loop as SL
 
 PHASE_DIR = Path(__file__).parent
@@ -96,6 +97,7 @@ def build_base_rates(n_arms: int) -> np.ndarray:
 
 
 def main():
+    set_global_seed()   # reproducible loop + gate
     print("\n=== Phase 17: Real Context + Safety-Gated Redeploys ===\n")
 
     print("Step 1/3: Build REAL per-user contexts + arms from KuaiRand...")
