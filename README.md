@@ -233,8 +233,6 @@ CI runs the same suite on every push and pull request.
 
 **Not yet built (forward-looking backlog, in priority order):**
 
-- [ ] **Contextual off-policy eval/learning** -- per-user policies instead of the
-  context-free demo in Phases 8-9.
 - [ ] **Joint PBM/DLA via EM** -- estimate examination and relevance together on
   position-carrying logs, and feed IPW-weighted labels into the Phase 2 ranker.
 

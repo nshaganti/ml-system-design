@@ -45,7 +45,7 @@ def _chart(canvas_id: str, height: int = 260) -> str:
 
 
 def build() -> str:
-    p = {n: load(n) for n in range(19)}
+    p = {n: load(n) for n in range(20)}
     charts_js: list[str] = []
     cards: list[str] = []
 
@@ -425,6 +425,33 @@ def build() -> str:
             scales: {{ y: {{ beginAtZero: true, title: {{ display: true, text: 'Recall@20' }} }} }} }}
         }});""")
 
+    # --- Group P: contextual OPE/OPL (Phase 19) ------------------------
+    if p[19]:
+        cards.append(_card(
+            "Group P - Contextual off-policy evaluation & learning (Phase 19)",
+            _chart("chartP"),
+            "OPE: absolute error (%) of each estimator against the contextual target's "
+            "TRUE value. The context-free (Phase 8) estimator is structurally biased "
+            "for a per-user target; contextual IPS/SNIPS/DR recover the truth.",
+        ))
+        ope = p[19]["ope"]
+        order = [("cf_ips", "Context-free IPS"), ("ips", "Contextual IPS"),
+                 ("snips", "SNIPS"), ("dm", "Direct Method"), ("dr", "Doubly Robust")]
+        labels = [o[1] for o in order]
+        errs = [round(ope[o[0]]["abs_error_pct"], 2) for o in order]
+        colors = ["#dc2626", "#16a34a", "#16a34a", "#f59e0b", "#2563eb"]
+        charts_js.append(f"""
+        new Chart(document.getElementById('chartP'), {{
+          type: 'bar',
+          data: {{
+            labels: {labels},
+            datasets: [{{ label: '|error| vs true value (%)', data: {errs},
+              backgroundColor: {colors} }}]
+          }},
+          options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ display: false }} }},
+            scales: {{ y: {{ beginAtZero: true, title: {{ display: true, text: '|error| %' }} }} }} }}
+        }});""")
+
     # --- serving + gate summary tiles (Phase 3, 4) ----------------------
     tiles = []
     if p[3]:
@@ -482,8 +509,8 @@ def build() -> str:
 
     <footer class="text-center text-sm text-slate-500 pt-4">
       Part I (Phases 0-7, +10, 12-13, 18): build a recommender with production discipline.
-      Part II (Phases 8-9, 11, 14-17): prove the metric was biased, fix the learning,
-      debias positions, explore (globally, per-user), and close + safety-gate the loop.
+      Part II (Phases 8-9, 11, 14-17, 19): prove the metric was biased, fix the learning,
+      debias positions, explore (globally, per-user), close + safety-gate the loop, go contextual.
     </footer>
   </div>
   <script>

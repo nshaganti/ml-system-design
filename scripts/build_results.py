@@ -304,10 +304,32 @@ def group_o(p18: dict) -> str:
     return "\n".join(out)
 
 
+def group_p(p19: dict) -> str:
+    ope_labels = [("cf_ips", "Context-free IPS (Phase 8)"), ("ips", "Contextual IPS"),
+                  ("snips", "Contextual SNIPS"), ("dm", "Direct Method"),
+                  ("dr", "Doubly Robust")]
+    out = [f"**A. OPE** -- estimating the contextual target's true value "
+           f"(**{p19['ope_true']:.4f}**):", "",
+           "| Estimator | Estimate | \\|error\\| |", "|---|---|---|"]
+    for key, label in ope_labels:
+        e = p19["ope"][key]
+        out.append(f"| {label} | {e['estimate']:.4f} | {e['abs_error_pct']:.1f}% |")
+    opl_labels = [("logging", "Logging (context-blind)"),
+                  ("context_free", "Learned, context-free"),
+                  ("contextual", "Learned, **contextual**"),
+                  ("target", "Target (softmax of truth)"),
+                  ("skyline", "Skyline (oracle)")]
+    out += ["", "**B. OPL** -- true value of the learned policy:", "",
+            "| Policy | True value |", "|---|---|"]
+    for key, label in opl_labels:
+        out.append(f"| {label} | {p19['opl'][key]:.4f} |")
+    return "\n".join(out)
+
+
 # --------------------------------------------------------------- main
 
 def build(text: str) -> str:
-    p = {n: load(n) for n in range(19)}
+    p = {n: load(n) for n in range(20)}
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -338,6 +360,8 @@ def build(text: str) -> str:
         text = replace_block(text, "groupN", group_n(p[17]))
     if p[18]:
         text = replace_block(text, "groupO", group_o(p[18]))
+    if p[19]:
+        text = replace_block(text, "groupP", group_p(p[19]))
     return text
 
 

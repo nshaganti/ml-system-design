@@ -440,6 +440,48 @@ and 12: **complexity has to earn its place on YOUR data.** See
 
 ---
 
+## Group P -- Contextual off-policy evaluation & learning (Phase 19)
+
+*Generalizes Phases 8-9 from one global policy to per-user policies. Controlled
+contextual world (real KuaiRand base rates + a known true reward model, so "truth" is
+computable), averaged over 20 worlds; each logs 8,000 rows from a context-BLIND
+logging policy.*
+
+<!-- AUTOGEN:groupP -->
+**A. OPE** -- estimating the contextual target's true value (**0.7568**):
+
+| Estimator | Estimate | \|error\| |
+|---|---|---|
+| Context-free IPS (Phase 8) | 0.5766 | 23.8% |
+| Contextual IPS | 0.7589 | 0.3% |
+| Contextual SNIPS | 0.7567 | 0.0% |
+| Direct Method | 0.7438 | 1.7% |
+| Doubly Robust | 0.7561 | 0.1% |
+
+**B. OPL** -- true value of the learned policy:
+
+| Policy | True value |
+|---|---|
+| Logging (context-blind) | 0.5725 |
+| Learned, context-free | 0.5753 |
+| Learned, **contextual** | 0.7362 |
+| Target (softmax of truth) | 0.7568 |
+| Skyline (oracle) | 0.9332 |
+<!-- /AUTOGEN:groupP -->
+
+**Verdict:** Part II's estimators go contextual. **(OPE)** the Phase 8 context-free
+estimator is **24% off** -- it structurally can't represent a per-user target -- while
+contextual IPS, SNIPS, and Doubly Robust recover the truth to within 0.3%. Direct
+Method is close but leans on its reward model (1.7% bias); **DR is the safest**,
+unbiased if EITHER the model or the propensities are right. **(OPL)** learning a
+policy off the same context-blind log, the context-free learned policy barely moves
+(0.5753, ~= the logger's 0.5725), but the **contextual** learned policy reaches 0.7362
+-- **+28%**, nearly matching the target -- by recovering the personalization the
+logger discarded. Context isn't a nicety; it's the difference between re-deriving the
+old blind policy and actually personalizing. See [`phase19.md`](phase19.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -463,6 +505,7 @@ and 12: **complexity has to earn its place on YOUR data.** See
 | 16 Closing the loop | **the full cycle** (explore->learn->redeploy) | exploration 41% -> 96% of skyline; IPS a wash | **up** |
 | 17 Real ctx + safety gate | **safe, real-context redeploys** | gate helps clean (67 vs 59%) & blocks a bug (worst 0.61 vs 0.57) | **up** |
 | 18 SASRec sequence model | **an honest negative** | self-attention finishes LAST (-71% vs co-vis) on this dense catalog | **down** |
+| 19 Contextual OPE/OPL | **per-user off-policy eval & learning** | context-free OPE 24% off; contextual policy +28% over context-free | **up** |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline
