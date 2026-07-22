@@ -689,13 +689,16 @@ add accuracy** -- the payoff curve is non-monotonic. Sorted by honest outcome:
 |---|---|
 | Two-tower over heuristic (P1) | **+84%** recall -- big win (dense-data regime) |
 | Co-visitation over popularity (P7) | **+61%** -- real, modest win |
+| Contextual over context-free OPL (P19) | **+28%** true value -- personalization recovered |
 | Two-tower score as a ranking feature (P13) | **+3.3%** -- two-stage finally earns it |
 | IPS/SNIPS off-policy eval (P8) | recovers truth to **0.6% error** (from +100% biased) |
+| Joint EM debiasing, no randomization (P20) | Spearman **0.92**, matches randomization IPW |
 | Position debiasing (P11) | Spearman **0.86 -> 0.97** |
 | Category cross feature in ranker (P2) | **-13%** NDCG -- hurt |
 | Near-realtime freshness (P6) | **flat** -- no measurable gain here |
 | GRU4Rec sequence model (P10) | **-15%** vs co-visitation -- lost |
 | Naive two-stage integration (P12) | **-18.7%** vs two-tower alone -- lost |
+| SASRec self-attention (P18) | **last, below popularity** -- data-hungry, wrong regime |
 
 Part II's real gains came from **causality and exploration, not model size**. The
 engineering skill is telling which is which *on your data* -- see
@@ -723,14 +726,43 @@ when the model is misspecified or when you estimate a policy's **value directly*
 is the difference between citing techniques and engineering. See
 [`docs/phase11.md`](docs/phase11.md), [`docs/off-policy-evaluation.md`](docs/off-policy-evaluation.md).
 
-### A recommender is a loop, not a model (Phase 16 capstone)
+### A recommender is a loop, not a model (Phase 16 capstone; gated in Phase 17)
 
 The capstone wires it together: **deploy -> explore + log (context, action,
 propensity, reward) -> learn off-policy -> redeploy.** The model is one step; value is
 created or destroyed by how the loop gathers and corrects its own data. Grade the
 policy you *ship* by its true value, not the reward your logs happened to record.
-Every redeploy should be gated by the Phase 4 monitoring + a min-propensity floor so
-a bad iteration can never ship. See [`docs/phase16.md`](docs/phase16.md).
+Phase 17 makes the redeploy step **safe**: every candidate is gated by off-policy
+evaluation on a fresh **uniform-random bucket** (unbiased for any candidate) plus a
+min-propensity floor, so a bad iteration -- even one corrupted by a logging bug --
+can never ship. See [`docs/phase16.md`](docs/phase16.md),
+[`docs/phase17.md`](docs/phase17.md).
+
+### Pitfall 10: Guarding the guard with biased data (Phase 17)
+
+A safety gate is only as trustworthy as the data it scores on. An early version
+scored each candidate on the log the **incumbent** generated -- a home-field
+advantage that over-blocked ~10 of 15 good candidates. Scoring on an unbiased
+uniform-random bucket fixed it. The Part II lesson (unbiased data beats convenient
+data) applies to the gate that guards the loop, not just the loop.
+
+### Pitfall 11: Using an estimator that can't represent your policy (Phase 19)
+
+The context-free OPE estimator from Phase 8 is **24% off** for a per-user target -- it
+averages the policy into one marginal distribution and literally cannot express
+"different users, different items." Match the estimator to the policy class:
+contextual IPS/SNIPS/DR recover the truth to <=0.3%, with **Doubly Robust the
+safest** (unbiased if *either* the reward model or the propensities are right). See
+[`docs/phase19.md`](docs/phase19.md).
+
+### Pitfall 12: Paying for randomization you can estimate (Phase 20)
+
+Phase 11 bought the examination curve with a revenue-costing result-randomization
+bucket. **Regression-EM** recovers the examination curve *and* relevance jointly from
+ordinary confounded logs (Spearman 0.92, matching the randomized IPW) -- so you can
+debias production traffic in place. One gotcha: EM converges at a **linear** rate (60
+iterations gave 0.72; ~300 gave 0.92) -- watch the log-likelihood plateau instead of
+guessing the iteration count. See [`docs/phase20.md`](docs/phase20.md).
 
 ---
 

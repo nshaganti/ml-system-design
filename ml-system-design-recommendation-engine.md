@@ -541,7 +541,7 @@ in *earning* complexity.
 
 ---
 
-## Part II -- Causality, Exploration & the Closed Loop (Phases 8-16)
+## Part II -- Causality, Exploration & the Closed Loop (Phases 8-20)
 
 Part I graded and trained models by *replaying logged data*. Part II is the reckoning:
 those logs were written by the incumbent policy, so both the *evaluation* and the
@@ -607,6 +607,47 @@ wrinkle: with a well-specified linear model, IPS was a near-wash (it only added
 variance) -- propensities earn their keep under misspecification or direct value
 estimation, not everywhere. Full walkthrough: [`docs/phase16.md`](docs/phase16.md).
 
+### Phase 17 -- Real Context + Safety-Gated Redeploys
+
+Removes Phase 16's two shortcuts: the loop now runs on **real per-user contexts**
+(activity + signal-mix features for ~23.5k KuaiRand users), and **every redeploy is
+gated by off-policy evaluation** on a fresh uniform-random bucket (unbiased for any
+candidate). The gate helps even in the clean case (**67% vs 59%** of skyline) and,
+when a simulated logging bug ships a corrupt candidate, blocks it -- the ungated
+loop's worst deploy craters to 0.57 while the gated loop holds 0.61. A safety gate is
+priced in the good case and cashed in the bad. Details:
+[`docs/phase17.md`](docs/phase17.md).
+
+### Phase 18 -- SASRec: an Honest Negative
+
+Closes Phase 10's loose end: does **self-attention** beat the co-visitation baseline
+that beat GRU4Rec? On the identical leave-one-out protocol, **no** -- SASRec finishes
+last, below popularity (Recall@20 0.023 vs co-visitation's 0.080), despite a verified
+sound model and a generous budget. A data-hungry transformer starves on a small
+(~7.5k-item), dense catalog where co-occurrence is a brutally strong baseline. The
+fourth honest negative in the project (with Phases 2, 6, 10): **complexity must earn
+its place on YOUR data.** Details: [`docs/phase18.md`](docs/phase18.md).
+
+### Phase 19 -- Contextual OPE/OPL
+
+Generalizes Phases 8-9 from one global policy to **per-user** policies. The context-
+free estimator is **24% off** for a contextual target (it can't represent "different
+users, different items"); contextual IPS/SNIPS/Doubly-Robust recover the truth to
+within 0.3%, with **DR the safest** (unbiased if either the model or the propensities
+are right). Learning off a context-blind log, a contextual policy beats a context-free
+one by **+28%** true value -- it recovers the personalization the logger discarded.
+Details: [`docs/phase19.md`](docs/phase19.md).
+
+### Phase 20 -- Joint EM Position-Bias Debiasing
+
+Finishes the position-bias arc. Phase 11 needed the examination curve from a costly
+randomization bucket; **Regression-EM** estimates the examination curve AND per-item
+relevance *jointly* from ordinary confounded production logs. It matches the
+randomization-based IPW (**Spearman 0.923 vs 0.937**) and nearly the oracle (0.941)
+with **no randomization at all** -- you can debias production traffic in place, and the
+recovered relevances are the labels you'd feed the Phase 2 ranker. Details:
+[`docs/phase20.md`](docs/phase20.md).
+
 ---
 
 ## The Complete Architecture
@@ -652,7 +693,7 @@ estimation, not everywhere. Full walkthrough: [`docs/phase16.md`](docs/phase16.m
 +-----------------------------+------------------------------------+
                               |
 +-----------------------------v------------------------------------+
-|            EXPLORE / OFF-POLICY LOOP  (Part II, Phases 14-16)     |
+|            EXPLORE / OFF-POLICY LOOP  (Part II, Phases 14-17)     |
 |                                                                  |
 |  Serving policy EXPLORES (epsilon-soft / Thompson / LinUCB) and   |
 |  logs (context, action, propensity, reward)  -- unbiased data.    |
@@ -713,7 +754,7 @@ These are the things you never had to care about in a notebook:
 | Month 2 | Feature store (Feast) + streaming features (Flink + Redis) | Eliminate training-serving skew |
 | Month 3 | Data monitoring (Great Expectations + Evidently) + A/B framework (GrowthBook) | Detect silent failures; safe iteration |
 | Month 4+ | Upgrade ranker to XGBoost, then DNN if XGBoost plateaus | Only if you have >100M training examples |
-| Part II | Off-policy eval/learning (Phase 8-9), position debiasing (Phase 11), then an explore-and-learn loop (Phases 14-16) | Fix biased metrics/learning; make data collection a closed causal loop |
+| Part II | Off-policy eval/learning (Phase 8-9, contextual in 19), position debiasing (Phase 11, joint-EM in 20), then an explore-and-learn loop (Phases 14-17) | Fix biased metrics/learning; make data collection a closed, safety-gated causal loop |
 
 The model upgrades in Month 4+ are optional and depend on observed ceiling. The infrastructure in Months 1-3 is not optional -- every production ML system needs it.
 
