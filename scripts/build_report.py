@@ -45,7 +45,7 @@ def _chart(canvas_id: str, height: int = 260) -> str:
 
 
 def build() -> str:
-    p = {n: load(n) for n in range(20)}
+    p = {n: load(n) for n in range(21)}
     charts_js: list[str] = []
     cards: list[str] = []
 
@@ -452,6 +452,34 @@ def build() -> str:
             scales: {{ y: {{ beginAtZero: true, title: {{ display: true, text: '|error| %' }} }} }} }}
         }});""")
 
+    # --- Group Q: joint EM debiasing (Phase 20) ------------------------
+    if p[20]:
+        cards.append(_card(
+            "Group Q - Joint EM position-bias debiasing (Phase 20)",
+            _chart("chartQ"),
+            "Spearman correlation with TRUE relevance, recovered from a CONFOUNDED "
+            "production log. Joint EM matches the randomization-based IPW (and nearly "
+            "the oracle) with NO randomization bucket.",
+        ))
+        m = p[20]["methods"]
+        order = [("naive", "Naive CTR"), ("ipw_true", "IPW (oracle exam)"),
+                 ("ipw_rand", "IPW (randomized)"), ("em", "Joint EM")]
+        labels = [o[1] for o in order]
+        sps = [round(m[o[0]]["spearman"], 3) for o in order]
+        colors = ["#dc2626", "#111827", "#2563eb", "#16a34a"]
+        charts_js.append(f"""
+        new Chart(document.getElementById('chartQ'), {{
+          type: 'bar',
+          data: {{
+            labels: {labels},
+            datasets: [{{ label: 'Spearman vs true relevance', data: {sps},
+              backgroundColor: {colors} }}]
+          }},
+          options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ display: false }} }},
+            scales: {{ y: {{ beginAtZero: true, max: 1.0,
+              title: {{ display: true, text: 'Spearman' }} }} }} }}
+        }});""")
+
     # --- serving + gate summary tiles (Phase 3, 4) ----------------------
     tiles = []
     if p[3]:
@@ -509,8 +537,8 @@ def build() -> str:
 
     <footer class="text-center text-sm text-slate-500 pt-4">
       Part I (Phases 0-7, +10, 12-13, 18): build a recommender with production discipline.
-      Part II (Phases 8-9, 11, 14-17, 19): prove the metric was biased, fix the learning,
-      debias positions, explore (globally, per-user), close + safety-gate the loop, go contextual.
+      Part II (Phases 8-9, 11, 14-17, 19-20): prove the metric was biased, fix the learning,
+      debias positions (with and without randomization), explore, close + safety-gate the loop, go contextual.
     </footer>
   </div>
   <script>

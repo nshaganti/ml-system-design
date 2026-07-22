@@ -37,6 +37,7 @@ sys.path.insert(0, str(ROOT / "phase16"))
 sys.path.insert(0, str(ROOT / "phase17"))
 sys.path.insert(0, str(ROOT / "phase18"))
 sys.path.insert(0, str(ROOT / "phase19"))
+sys.path.insert(0, str(ROOT / "phase20"))
 
 DAY_MS = 86_400 * 1000
 

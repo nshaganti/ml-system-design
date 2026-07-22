@@ -326,10 +326,25 @@ def group_p(p19: dict) -> str:
     return "\n".join(out)
 
 
+def group_q(p20: dict) -> str:
+    labels = [("naive", "Naive CTR (confounded)"), ("ipw_true", "IPW, TRUE exam (oracle)"),
+              ("ipw_rand", "IPW, randomized (Phase 11)"), ("em", "Joint EM (Phase 20)")]
+    m = p20["methods"]
+    out = ["| Method | Spearman | Top-10 recall |", "|---|---|---|"]
+    for key, label in labels:
+        sp, tk = m[key]["spearman"], m[key]["top10"]
+        cell = f"**{sp:.3f}**" if key == "em" else f"{sp:.3f}"
+        out.append(f"| {label} | {cell} | {tk*100:.0f}% |")
+    out.append("")
+    out.append(f"*EM examination-curve error: {p20['exam_mae']:.3f} MAE | "
+               f"log-likelihood monotone: {'yes' if p20['loglik_monotone'] else 'no'}.*")
+    return "\n".join(out)
+
+
 # --------------------------------------------------------------- main
 
 def build(text: str) -> str:
-    p = {n: load(n) for n in range(20)}
+    p = {n: load(n) for n in range(21)}
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -362,6 +377,8 @@ def build(text: str) -> str:
         text = replace_block(text, "groupO", group_o(p[18]))
     if p[19]:
         text = replace_block(text, "groupP", group_p(p[19]))
+    if p[20]:
+        text = replace_block(text, "groupQ", group_q(p[20]))
     return text
 
 

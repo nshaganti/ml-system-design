@@ -54,6 +54,8 @@ us.** Written for an ML engineer moving from notebooks to production.
 - [`docs/phase15.md`](docs/phase15.md) -- the **contextual bandit** (LinUCB): personalized exploration. On a world where the best item depends on the user, LinUCB gets ~92% less regret than context-free Thompson -- context helps, and exploration still helps on top of context.
 - [`docs/phase16.md`](docs/phase16.md) -- **closing the loop** (capstone): explore -> learn off-policy -> redeploy. Exploration lifts the deployed policy's TRUE value from 41% to ~96% of the skyline; the no-exploration trap stalls. IPS is a near-wash with a well-specified model (Phase 11's bias-variance lesson, one last time).
 - [`docs/phase17.md`](docs/phase17.md) -- **real context + safety-gated redeploys**: the loop runs on real per-user contexts and gates every redeploy through off-policy evaluation on an unbiased bucket. The gate helps even clean (67% vs 59% of skyline) and blocks a simulated logging bug (worst deploy 0.61 vs 0.57).
+- [`docs/phase19.md`](docs/phase19.md) -- **contextual OPE/OPL**: Part II's estimators go per-user. Context-free OPE is **24% off** for a contextual target; contextual IPS/SNIPS/DR recover the truth (<=0.3%), and a contextual learned policy beats context-free by **+28%** true value.
+- [`docs/phase20.md`](docs/phase20.md) -- **joint EM debiasing**: recover the examination curve AND relevance jointly from confounded production logs. EM matches the randomization-based IPW (Spearman 0.923 vs 0.937) with **no randomization bucket** -- debias production traffic in place.
 - [`docs/off-policy-evaluation.md`](docs/off-policy-evaluation.md) -- the deep dive on IPS / SNIPS / DM / DR and why known propensities matter.
 
 **Cross-cutting:**
@@ -98,6 +100,8 @@ us.** Written for an ML engineer moving from notebooks to production.
 ├── phase16/                  # Closing the loop: explore->learn->redeploy (capstone)
 ├── phase17/                  # Real context + safety-gated redeploys -- Part II
 ├── phase18/                  # SASRec sequence model (honest negative) -- Part I
+├── phase19/                  # Contextual OPE/OPL (per-user off-policy) -- Part II
+├── phase20/                  # Joint EM position-bias debiasing -- Part II
 ├── scripts/                  # build_results.py + build_report.py (scoreboard/report generators)
 ├── run_all.py                # run every phase end-to-end, then rebuild docs
 ├── tests/                    # pytest suite (tiny in-memory frames, no CSVs needed)
@@ -169,6 +173,8 @@ cd phase17 && python run.py  # PART II -- real contexts + OPE safety gate (block
 cd phase18 && python run.py  # SASRec: self-attention finishes LAST here (attention is data-hungry)
 cd phase8 && python run.py   # PART II -- OPE: naive metric +100% biased vs SNIPS 0.6%
 cd phase9 && python run.py   # PART II -- OPL: policy learned on unbiased data +87% true value
+cd phase19 && python run.py  # PART II -- contextual OPE/OPL: context-free eval 24% off; contextual OPL +28%
+cd phase20 && python run.py  # PART II -- joint EM debiasing: matches randomization IPW, no random bucket
 ```
 
 The scoreboard in [`docs/results.md`](docs/results.md) is **auto-generated** from
@@ -230,11 +236,12 @@ CI runs the same suite on every push and pull request.
 - [x] Phase 15 -- contextual bandit (LinUCB): personalized exploration, -92% regret vs context-free
 - [x] Phase 16 -- closing the loop (capstone): explore -> learn off-policy -> redeploy; exploration 41% -> 96% of skyline
 - [x] Phase 17 -- real context + safety-gated redeploys (OPE gate on an unbiased bucket blocks a poisoned batch)
+- [x] Phase 19 -- contextual OPE/OPL (context-free eval 24% off; DR recovers truth; contextual learned policy +28% over context-free)
+- [x] Phase 20 -- joint EM position-bias debiasing (Regression-EM matches randomization IPW, Spearman 0.923 vs 0.937, with no randomization bucket)
 
-**Not yet built (forward-looking backlog, in priority order):**
-
-- [ ] **Joint PBM/DLA via EM** -- estimate examination and relevance together on
-  position-carrying logs, and feed IPW-weighted labels into the Phase 2 ranker.
+**Backlog: all cleared.** Every phase originally sketched -- and the four follow-up
+gaps (real-context safety gate, SASRec, contextual OPE/OPL, joint EM debiasing) -- is
+now built, tested, and documented.
 
 All implemented phases are tested and run on real KuaiRand-Pure data. See the
 [learning walkthroughs](#learning-walkthroughs-start-here). For an honest look at

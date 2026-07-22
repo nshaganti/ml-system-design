@@ -28,7 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 # Order matters: phase1 reads phase0's results.json; later phases reuse earlier
 # artifacts conceptually. 0 must run before 1 for the baseline comparison.
-PHASES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+PHASES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 
 
 def run_phase(n: int) -> tuple[bool, float]:

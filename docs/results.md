@@ -482,6 +482,38 @@ old blind policy and actually personalizing. See [`phase19.md`](phase19.md).
 
 ---
 
+## Group Q -- Joint EM position-bias debiasing (Phase 20)
+
+*Generalizes Phase 11: recover the examination curve AND per-item relevance jointly
+from ordinary (biased) production logs -- no randomization bucket. Controlled world
+(real KuaiRand base rates as true relevance + a known examination curve), averaged
+over 8 worlds; the production log is CONFOUNDED (each slate ordered by a stale ranker
+only partly aligned with true relevance).*
+
+<!-- AUTOGEN:groupQ -->
+| Method | Spearman | Top-10 recall |
+|---|---|---|
+| Naive CTR (confounded) | 0.588 | 31% |
+| IPW, TRUE exam (oracle) | 0.941 | 74% |
+| IPW, randomized (Phase 11) | 0.937 | 76% |
+| Joint EM (Phase 20) | **0.923** | 74% |
+
+*EM examination-curve error: 0.007 MAE | log-likelihood monotone: yes.*
+<!-- /AUTOGEN:groupQ -->
+
+**Verdict:** the payoff of the whole position-bias arc. Naive CTR is badly confounded
+(Spearman 0.588 -- it ranks slots as much as items). IPW fixes it *if* you know the
+examination curve, which Phase 11 bought with a costly result-randomization bucket
+(0.937). **Regression-EM estimates the examination curve AND relevance jointly from
+the biased production log itself (0.923) -- matching the randomization-based IPW and
+nearly the oracle (0.941), with NO randomization at all.** Its recovered examination
+curve is off by just 0.007 MAE and the log-likelihood climbs monotonically, as EM
+guarantees. The recovered per-item relevances are exactly the debiased labels you'd
+feed the Phase 2 ranker -- so you can debias production traffic in place. See
+[`phase20.md`](phase20.md).
+
+---
+
 ## What each phase actually bought
 
 | Phase | Primary currency | Headline result | Accuracy delta |
@@ -506,6 +538,7 @@ old blind policy and actually personalizing. See [`phase19.md`](phase19.md).
 | 17 Real ctx + safety gate | **safe, real-context redeploys** | gate helps clean (67 vs 59%) & blocks a bug (worst 0.61 vs 0.57) | **up** |
 | 18 SASRec sequence model | **an honest negative** | self-attention finishes LAST (-71% vs co-vis) on this dense catalog | **down** |
 | 19 Contextual OPE/OPL | **per-user off-policy eval & learning** | context-free OPE 24% off; contextual policy +28% over context-free | **up** |
+| 20 Joint EM debiasing | **debias production logs in place** | EM 0.923 Spearman = randomization IPW 0.937, no random bucket | **up** |
 
 **The lesson in one line:** Part I's complexity bought robustness, correctness, and
 honest experimentation; Part II's causal evaluation revealed that the offline
