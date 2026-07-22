@@ -5,9 +5,11 @@ Builds BPR (Bayesian Personalized Ranking) training triples from events.
 
 Key design decisions (all flow from the design doc):
 
-1. Positives = STRONG signals ONLY (target actions).
-   Views are 96.7% of events and carry weak signal — using them as positives
-   would teach the model to replicate a popularity ranker, not beat one.
+1. Positives = POSITIVE signals (MEDIUM engagement OR STRONG target action).
+   Views (WEAK) are 96.7% of events and carry minimal intent -- using them as
+   positives would teach the model to replicate a popularity ranker, not beat one.
+   (The name below is `POSITIVE_SIGNAL_TYPES`; earlier drafts of this file
+   mislabelled these as "STRONG only" -- they are MEDIUM-or-stronger.)
 
 2. User = mean-pool of history item embeddings (no user ID table).
    This makes the model generalize to users it has never seen (cold-start).
@@ -32,7 +34,7 @@ from torch.utils.data import Dataset
 
 from signals import POSITIVE_SIGNALS
 
-MIN_STRONG_INTERACTIONS = 3   # item must appear in >=N positive events to enter vocab
+MIN_POSITIVE_INTERACTIONS = 3   # item must appear in >=N positive events to enter vocab
 MAX_HISTORY_LEN         = 50  # cap user history to most-recent N items (memory + speed)
 POSITIVE_SIGNAL_TYPES   = set(POSITIVE_SIGNALS)  # engagement-or-stronger = a positive
 
@@ -65,27 +67,28 @@ class ItemVocab:
 
 def build_vocab(train_events: pl.DataFrame) -> ItemVocab:
     """
-    Build item vocabulary from STRONG events (target actions) only.
+    Build item vocabulary from POSITIVE events (MEDIUM+STRONG) only.
 
-    Why strong events only?
-    If we include all events, items with many weak signals but zero strong ones enter the
-    vocab with no real training signal from positives. Their embeddings stay
-    near-random after training. Searching 78K near-random embeddings is worse
-    than a popularity ranker — this is exactly what happened in our first run.
+    Why positive events only?
+    If we include all events, items with many weak exposures but zero positive
+    interactions enter the vocab with no real training signal from positives.
+    Their embeddings stay near-random after training. Searching 78K near-random
+    embeddings is worse than a popularity ranker -- this is exactly what happened
+    in our first run.
 
-    By restricting to items with ≥ MIN_STRONG_INTERACTIONS strong events, every
-    item in the vocab has meaningful gradient signal and the search index is
-    high-quality. Items outside the vocab fall back to Phase 0.
+    By restricting to items with >= MIN_POSITIVE_INTERACTIONS positive events,
+    every item in the vocab has meaningful gradient signal and the search index
+    is high-quality. Items outside the vocab fall back to Phase 0.
     """
-    strong_events = train_events.filter(
+    positive_events = train_events.filter(
         pl.col("event_type").is_in(list(POSITIVE_SIGNAL_TYPES))
     )
 
     item_counts = (
-        strong_events
+        positive_events
         .group_by("item_id")
         .agg(pl.len().alias("count"))
-        .filter(pl.col("count") >= MIN_STRONG_INTERACTIONS)
+        .filter(pl.col("count") >= MIN_POSITIVE_INTERACTIONS)
         .sort("count", descending=True)
     )
 
@@ -93,8 +96,8 @@ def build_vocab(train_events: pl.DataFrame) -> ItemVocab:
     item_id_to_idx = {item_id: idx for idx, item_id in enumerate(items)}
 
     print(
-        f"[dataset] Vocab: {len(items):,} items from strong events "
-        f"(min {MIN_STRONG_INTERACTIONS} strong events each; "
+        f"[dataset] Vocab: {len(items):,} items from positive events "
+        f"(min {MIN_POSITIVE_INTERACTIONS} positive events each; "
         f"total unique items in training: {train_events['item_id'].n_unique():,})"
     )
     return ItemVocab(item_id_to_idx=item_id_to_idx, idx_to_item_id=items)
@@ -137,8 +140,8 @@ class BPRDataset(Dataset):
     """
     BPR training triples: (user_history, positive_item, negative_item)
 
-    For each user with at least one strong event:
-      - positive = each strong-signal item (in vocab)
+    For each user with at least one positive event:
+      - positive = each POSITIVE-signal item (MEDIUM+STRONG, in vocab)
       - user_context = ALL other in-vocab items in user's history (excluding the positive)
       - negative = uniformly sampled item NOT in user's full history
 
@@ -165,7 +168,7 @@ class BPRDataset(Dataset):
         self._rng = np.random.default_rng(seed)
 
         # Build positives: (user_id, positive_item_idx)
-        strong_events = train_events.filter(
+        positive_events = train_events.filter(
             pl.col("event_type").is_in(list(POSITIVE_SIGNAL_TYPES))
             & pl.col("item_id").is_in(list(vocab.item_id_to_idx.keys()))
         )
@@ -175,13 +178,13 @@ class BPRDataset(Dataset):
         all_item_indices = list(range(vocab.size))
 
         # Precompute the popularity distribution over vocab indices (count**0.75).
-        self._neg_probs = self._build_popularity_probs(strong_events, vocab)
+        self._neg_probs = self._build_popularity_probs(positive_events, vocab)
         # A refillable buffer of pre-sampled negatives (vectorized draws are far
         # faster than one np.random.choice call per triple).
         self._neg_buffer: list[int] = []
 
         users_skipped = 0
-        for row in strong_events.iter_rows(named=True):
+        for row in positive_events.iter_rows(named=True):
             user_id     = row["user_id"]
             pos_idx     = vocab.encode(row["item_id"])
             if pos_idx is None:
@@ -209,7 +212,7 @@ class BPRDataset(Dataset):
 
     def _build_popularity_probs(
         self,
-        strong_events: pl.DataFrame,
+        positive_events: pl.DataFrame,
         vocab: ItemVocab,
     ) -> np.ndarray | None:
         """Probability of drawing each vocab index as a negative (count**0.75)."""
@@ -217,7 +220,7 @@ class BPRDataset(Dataset):
             return None
         counts = np.zeros(vocab.size, dtype=np.float64)
         agg = (
-            strong_events
+            positive_events
             .group_by("item_id")
             .agg(pl.len().alias("count"))
         )

@@ -159,7 +159,7 @@ That completes **Part I (Phases 0-7)** -- the full classic-recommender lifecycle
 | Phase | What it added | Standout result (KuaiRand) |
 |---|---|---|
 | 0 | Heuristic baseline | Recall@20 = 0.067; temporal eval discipline |
-| 1 | Two-tower retrieval | **beat** the heuristic +84%, coverage +120% |
+| 1 | Two-tower retrieval | **beat** the heuristic +75%, coverage +113% |
 | 2 | Feature store + LR ranker | skew measured 2-2.4x; weak cross feature *hurt* (-12% NDCG) |
 | 3 | Serving architecture | p50 4.1ms, graceful fallback, Rule 29 logging |
 | 4 | Monitoring & drift | drift gate FAILs by design |

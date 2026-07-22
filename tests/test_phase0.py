@@ -14,6 +14,27 @@ import polars as pl
 from evaluate import temporal_split, recall_at_k
 from heuristic_ranker import HeuristicRanker, EVENT_WEIGHTS
 from load_data import get_item_snapshot
+from signals import seen_positive_item_ids
+
+
+# ------------------------------------------------- shared exclusion policy
+
+
+def test_seen_positive_excludes_positives_but_not_weak_exposures():
+    import polars as pl
+    ev = pl.DataFrame({
+        "user_id": ["u", "u", "u"],
+        "item_id": ["liked", "clicked", "scrolled_past"],
+        "event_type": ["strong", "medium", "weak"],
+    })
+    seen = seen_positive_item_ids(ev)
+    assert seen == {"liked", "clicked"}   # weak exposure is NOT excluded
+
+
+def test_seen_positive_handles_empty_history():
+    import polars as pl
+    assert seen_positive_item_ids(pl.DataFrame({"user_id": [], "item_id": [], "event_type": []})) == set()
+    assert seen_positive_item_ids(None) == set()
 
 
 # ---------------------------------------------------------------- get_item_snapshot

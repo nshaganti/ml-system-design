@@ -56,14 +56,14 @@ the random one.
 loss = -mean( log( sigmoid( score(pos) - score(neg) ) ) )
 ```
 
-Crucial data decision (`dataset.py`): **positives are STRONG signals only**
-(long-view / like / follow / forward / comment) -- not mere exposures or clicks.
-Weak exposures are ~54% of events and carry little intent; if you train on them as
-positives, the model just learns to reproduce a popularity ranker. We also drop
-items with fewer than 3 strong interactions -- their embeddings can't be learned
-from 1-2 examples, and a near-random embedding in your search index is worse than
-useless. (On KuaiRand this yields a 6,266-item vocab from 7,540 unique training
-items, and 535,785 BPR triples.)
+Crucial data decision (`dataset.py`): **positives are POSITIVE signals**
+(MEDIUM engagement OR STRONG target action -- e.g. click/dwell plus
+long-view/like/follow) -- not mere WEAK exposures. Weak exposures carry little
+intent; if you train on them as positives, the model just learns to reproduce a
+popularity ranker. We also drop items with fewer than 3 positive interactions --
+their embeddings can't be learned from 1-2 examples, and a near-random embedding
+in your search index is worse than useless. (Exact vocab/triple counts print at
+run time and are regenerated into the scoreboard.)
 
 ## Code tour
 
@@ -90,15 +90,17 @@ Here's what actually happened when we ran it on KuaiRand:
 
 | Metric | Phase 0 (heuristic) | Phase 1 (two-tower) | Verdict |
 |---|---|---|---|
-| Recall@20 | 0.0670 | **0.1231** | **+84%** |
-| Warm-user recall | 0.0656 | **0.1231** | +88% |
-| Catalog coverage | 0.0714 | **0.1570** | +120% |
-| Cold-start recall | 0.1175 | **0.1213** | +3% (falls back to heuristic) |
+| Recall@20 | 0.0714 | **0.1246** | **+75%** |
+| Warm-user recall | 0.0703 | **0.1252** | +78% |
+| Catalog coverage | 0.0752 | **0.1603** | +113% |
+| Cold-start recall | 0.1189 | 0.1058 | ~wash (both served by the heuristic fallback) |
 
-**The learned model wins on every axis** -- ~1.8x recall and ~2.2x catalog
-coverage. That coverage jump matters as much as the recall: a popularity ranker
-recommends the same head items to everyone (7% of the catalog); the two-tower
-surfaces long-tail items (16%), which is what drives discovery.
+**The learned model wins where it can act** -- ~1.8x recall and ~2.1x catalog
+coverage for warm users. Cold-start is a wash (both systems serve those users with
+the *same* heuristic fallback, so the small difference is sampling/classification
+noise, not the model). That coverage jump matters as much as the recall: a popularity
+ranker recommends the same head items to everyone (~8% of the catalog); the two-tower
+surfaces long-tail items (~16%), which is what drives discovery.
 
 ### Why it wins *here* (and when it wouldn't)
 

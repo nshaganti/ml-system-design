@@ -11,7 +11,7 @@ Google's Rule 7: Encode domain knowledge as features, not discarded alternatives
 import polars as pl
 from dataclasses import dataclass, field
 
-from signals import SIGNAL_WEIGHTS, TARGET_SIGNAL
+from signals import SIGNAL_WEIGHTS, TARGET_SIGNAL, seen_positive_item_ids
 
 # Event weights for the popularity score come from the signal taxonomy
 # (Rule 7: encode domain knowledge in one place). A target action counts more
@@ -138,14 +138,10 @@ class HeuristicRanker:
                 )
                 ranked = ranked.join(items_in_cats.select("item_id"), on="item_id", how="inner")
 
-            # Exclude items the user has already consumed (target action)
-            already_consumed = (
-                user_events
-                .filter(pl.col("event_type") == TARGET_SIGNAL)
-                ["item_id"]
-                .unique()
-                .to_list()
-            )
+            # Exclude items the user already engaged with (shared policy: any
+            # POSITIVE signal, so every ranker excludes the same set -- see
+            # signals.seen_positive_item_ids).
+            already_consumed = list(seen_positive_item_ids(user_events))
             if already_consumed:
                 ranked = ranked.filter(~pl.col("item_id").is_in(already_consumed))
 

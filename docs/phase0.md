@@ -122,8 +122,8 @@ Run `cd phase0 && python run.py`:
 
 | Metric | Value | What it means |
 |---|---|---|
-| **Recall@20** | **0.0670** | Of every 100 items users engaged with, ~7 were in our top-20. |
-| Warm-user recall | 0.0656 | Users *with* history -- see the twist below. |
+| **Recall@20** | **0.0714** | Of every 100 items users engaged with, ~7 were in our top-20. |
+| Warm-user recall | 0.0703 | Users *with* history -- see the twist below. |
 | Cold-start recall | 0.1175 | New users get pure global popularity. |
 | Catalog coverage | 0.0714 | We only ever recommend ~7% of the catalog. |
 
@@ -150,7 +150,7 @@ Three honest observations:
 
 ## What to carry into Phase 1
 
-- You now have a **baseline (0.0670)** and an **evaluation harness** that every
+- You now have a **baseline (0.0714)** and an **evaluation harness** that every
   future model plugs into unchanged.
 - You've internalized **temporal evaluation** -- the non-negotiable discipline.
 - You've seen **coverage vs recall** as two axes, not one -- and an early sign

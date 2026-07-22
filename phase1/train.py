@@ -74,7 +74,7 @@ def train(
         "n_items":       vocab.size,
         "n_training_triples": len(dataset),
         "device":        device,
-        "positive_events": "STRONG signals (target actions)",
+        "positive_events": "POSITIVE signals (MEDIUM engagement + STRONG target)",
         "user_repr":     "mean-pool item embeddings",
         "negative_sampling": getattr(dataset, "negative_sampling", "uniform"),
     }

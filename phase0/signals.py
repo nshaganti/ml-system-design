@@ -44,3 +44,27 @@ TARGET_SIGNAL = STRONG
 def is_positive(signal: str) -> bool:
     """True if a signal counts as a positive training label."""
     return signal in POSITIVE_SIGNALS
+
+
+def seen_positive_item_ids(user_events) -> set[str]:
+    """The SHARED exclusion policy for every ranker's .recommend().
+
+    Returns the item_ids the user already had a POSITIVE (MEDIUM/STRONG) signal
+    on. Every ranker excludes exactly these -- and only these -- so the shared
+    evaluation harness is truly apples-to-apples.
+
+    Why this exists: the heuristic used to exclude STRONG-only items while the
+    two-tower excluded ALL seen items (including weak exposures). Different
+    exclusion policies inside the 'same' recall_at_k harness quietly bias the
+    comparison. A mere WEAK exposure (a scroll-past) is intentionally NOT excluded
+    -- re-surfacing something a user merely glanced at is legitimate.
+    """
+    if user_events is None or len(user_events) == 0:
+        return set()
+    import polars as pl  # lazy: keep this module dependency-light
+
+    return set(
+        user_events
+        .filter(pl.col("event_type").is_in(list(POSITIVE_SIGNALS)))["item_id"]
+        .to_list()
+    )

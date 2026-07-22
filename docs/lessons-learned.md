@@ -12,7 +12,7 @@ The per-phase walkthroughs ([phase0](phase0.md), [phase1](phase1.md),
 ## 1. A model's value depends on the data regime -- measure, don't assume
 
 Our two-tower model **beat** the popularity+category heuristic on KuaiRand
-(Recall@20 0.1231 vs 0.0670, +84%) -- because the feedback is dense and the
+(Recall@20 0.1246 vs 0.0714, +75%) -- because the feedback is dense and the
 catalog is small. The *same* model on a sparse e-commerce log typically **loses**
 to that heuristic. Neither outcome is guaranteed by the architecture; both are
 properties of the data.

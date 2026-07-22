@@ -25,6 +25,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "phase0"))
 from heuristic_ranker import HeuristicRanker
+from signals import seen_positive_item_ids
 
 sys.path.insert(0, str(Path(__file__).parent))
 from two_tower import TwoTowerModel
@@ -104,8 +105,10 @@ class TwoTowerRanker:
         # Warm user: compute user vector from history
         user_vec = self._compute_user_vector(history_idx)
 
-        # Items already interacted with (don't re-recommend)
-        already_seen = set(user_events["item_id"].to_list())
+        # Items already positively engaged with (don't re-recommend). SHARED
+        # policy with the heuristic so recall_at_k is apples-to-apples -- weak
+        # exposures are intentionally NOT excluded (see signals module).
+        already_seen = seen_positive_item_ids(user_events)
 
         # Stage 1: ANN search → top-500 candidates (same as production architecture)
         candidates = self.index.search(

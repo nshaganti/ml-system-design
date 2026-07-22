@@ -97,7 +97,7 @@ This is the single most important investment of Phase 0. Log every impression, c
 - **Apache Iceberg on S3/GCS** -- durable event store for training data
 
 > **In practice (this repo).** We implemented Phase 0 on the KuaiRand-Pure
-> dataset in [`phase0/`](phase0/). The heuristic scores **Recall@20 = 0.0670**
+> dataset in [`phase0/`](phase0/). The heuristic scores **Recall@20 = 0.0714**
 > with an honest temporal split -- the baseline every later model must beat. A
 > twist worth noting: cold-start recall (0.118, pure popularity) actually *beats*
 > warm-user recall (0.066, popularity + category filter), an early hint that the
@@ -205,7 +205,7 @@ When the ranker makes a mistake, logistic regression tells you *why* -- you can 
 
 > **In practice (this repo).** Our two-tower candidate generator lives in
 > [`phase1/`](phase1/) with MLflow tracking. On KuaiRand it **beats** the Phase 0
-> heuristic: **Recall@20 0.1231 vs 0.0670 (+84%)** and catalog coverage +120% --
+> heuristic: **Recall@20 0.1246 vs 0.0714 (+75%)** and catalog coverage +113% --
 > because the feedback is dense (a third of events are strong) and the catalog is
 > small (~7.5k). That's the *opposite* of a sparse e-commerce log, where the same
 > ID-only two-tower would likely lose to a strong heuristic; model value is a

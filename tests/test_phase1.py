@@ -17,7 +17,7 @@ from dataset import (
     build_vocab,
     build_user_histories,
     BPRDataset,
-    MIN_STRONG_INTERACTIONS,
+    MIN_POSITIVE_INTERACTIONS,
     MAX_HISTORY_LEN,
 )
 from two_tower import TwoTowerModel, bpr_loss, get_all_item_embeddings
@@ -25,14 +25,14 @@ from index import EmbeddingIndex
 
 
 def _strong_events():
-    """Item 'hot' gets >= MIN_STRONG_INTERACTIONS carts; 'rare' gets one."""
+    """Item 'hot' gets >= MIN_POSITIVE_INTERACTIONS carts; 'rare' gets one."""
     base = 1_600_000_000_000
     rows = []
     # hot: enough strong events across a few users to clear the threshold
-    for i in range(MIN_STRONG_INTERACTIONS + 1):
+    for i in range(MIN_POSITIVE_INTERACTIONS + 1):
         rows.append((f"u{i}", "medium", "hot", base + i))
     # warm: exactly at the threshold
-    for i in range(MIN_STRONG_INTERACTIONS):
+    for i in range(MIN_POSITIVE_INTERACTIONS):
         rows.append((f"w{i}", "strong", "warm", base + 100 + i))
     # rare: below threshold -> excluded from vocab
     rows.append(("u0", "medium", "rare", base + 200))
@@ -61,7 +61,7 @@ def test_vocab_only_includes_frequent_strong_items():
     ids = set(vocab.idx_to_item_id)
     assert "hot" in ids
     assert "warm" in ids
-    assert "rare" not in ids       # below MIN_STRONG_INTERACTIONS
+    assert "rare" not in ids       # below MIN_POSITIVE_INTERACTIONS
     assert "viewonly" not in ids   # views never count as strong
 
 
@@ -135,7 +135,7 @@ def test_bpr_dataset_popularity_sampling_runs():
     base = 1_600_000_000_000
     rows = []
     for item in ("a", "b", "c", "d"):
-        for i in range(MIN_STRONG_INTERACTIONS):
+        for i in range(MIN_POSITIVE_INTERACTIONS):
             rows.append((f"seed_{item}_{i}", "strong", item, base + i))
     rows.append(("hero", "strong", "a", base + 500))
     rows.append(("hero", "strong", "b", base + 501))
@@ -162,7 +162,7 @@ def test_bpr_dataset_negatives_outside_history():
     base = 1_600_000_000_000
     rows = []
     for item in ("a", "b", "c"):
-        for i in range(MIN_STRONG_INTERACTIONS):
+        for i in range(MIN_POSITIVE_INTERACTIONS):
             rows.append((f"seed_{item}_{i}", "strong", item, base + i))
     # the user we care about interacts with a and b (context + positive)
     rows.append(("hero", "strong", "a", base + 500))
