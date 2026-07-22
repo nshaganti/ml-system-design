@@ -23,6 +23,36 @@ import numpy as np
 SEED = 42
 
 
+def resolve_device(prefer: str | None = None) -> str:
+    """Pick the torch device for a *reproducible* run.
+
+    Honesty note the review forced us to confront: neural training on a GPU/MPS
+    backend is NOT bit-reproducible even with every seed pinned -- MPS/CUDA
+    reduction kernels (embedding scatter-add, matmul) are non-deterministic, and
+    `use_deterministic_algorithms(warn_only=True)` lets them run anyway. Pinning CPU
+    was necessary but not sufficient: the Phase 1 recall still drifted until we also
+    fixed two order bugs (an unstable `group_by` in the vocab build, and a seeded
+    `.sample()` over an unstably-ordered eval frame). Device is one leg of the tripod.
+
+    So the CANONICAL run pins **CPU**, which IS deterministic here and plenty fast
+    for these small models. Set `CP_DEVICE=mps` (or `cuda`) to trade reproducibility
+    for speed when you're just experimenting.
+    """
+    choice = (prefer or os.environ.get("CP_DEVICE", "cpu")).lower()
+    if choice == "cpu":
+        return "cpu"
+    try:
+        import torch
+
+        if choice == "cuda" and torch.cuda.is_available():
+            return "cuda"
+        if choice == "mps" and torch.backends.mps.is_available():
+            return "mps"
+    except ImportError:
+        pass
+    return "cpu"
+
+
 def set_global_seed(seed: int = SEED, deterministic: bool = True) -> int:
     """Seed every RNG we touch. Returns the seed for logging.
 

@@ -88,19 +88,20 @@ run time and are regenerated into the scoreboard.)
 
 Here's what actually happened when we ran it on KuaiRand:
 
+<!-- AUTOGEN:groupA-phase1 -->
 | Metric | Phase 0 (heuristic) | Phase 1 (two-tower) | Verdict |
 |---|---|---|---|
-| Recall@20 | 0.0714 | **0.1246** | **+75%** |
-| Warm-user recall | 0.0703 | **0.1252** | +78% |
-| Catalog coverage | 0.0752 | **0.1603** | +113% |
-| Cold-start recall | 0.1189 | 0.1058 | ~wash (both served by the heuristic fallback) |
-
-**The learned model wins where it can act** -- ~1.8x recall and ~2.1x catalog
+| Recall@20 | 0.0695 | **0.1099** | **+58%** |
+| Warm-user recall | 0.0681 | **0.1098** | **+61%** |
+| Catalog coverage | 0.0679 | **0.1473** | **+117%** |
+| Cold-start recall | 0.1157 | 0.1157 | ~wash (both served by the heuristic fallback) |
+<!-- /AUTOGEN:groupA-phase1 -->
+**The learned model wins where it can act** -- ~1.6x recall and ~2.2x catalog
 coverage for warm users. Cold-start is a wash (both systems serve those users with
 the *same* heuristic fallback, so the small difference is sampling/classification
 noise, not the model). That coverage jump matters as much as the recall: a popularity
-ranker recommends the same head items to everyone (~8% of the catalog); the two-tower
-surfaces long-tail items (~16%), which is what drives discovery.
+ranker recommends the same head items to everyone (~7% of the catalog); the two-tower
+surfaces long-tail items (~15%), which is what drives discovery.
 
 ### Why it wins *here* (and when it wouldn't)
 

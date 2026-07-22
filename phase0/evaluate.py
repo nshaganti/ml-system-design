@@ -80,6 +80,10 @@ def recall_at_k(
         .filter(pl.col("event_type").is_in(list(POSITIVE_SIGNALS)))
         .group_by("user_id")
         .agg(pl.col("item_id").alias("positive_items"))
+        # group_by order is NOT stable; without this sort the seeded .sample()
+        # below draws a DIFFERENT 5,000-user subset each run -> recall drifts
+        # even when the model is identical. Pin the order first.
+        .sort("user_id")
     )
 
     if len(test_positives) == 0:

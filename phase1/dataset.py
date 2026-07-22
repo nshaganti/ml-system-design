@@ -89,7 +89,11 @@ def build_vocab(train_events: pl.DataFrame) -> ItemVocab:
         .group_by("item_id")
         .agg(pl.len().alias("count"))
         .filter(pl.col("count") >= MIN_POSITIVE_INTERACTIONS)
-        .sort("count", descending=True)
+        # Tiebreak on item_id: group_by order is NOT stable, and a plain
+        # sort-by-count would leave equal-count items in a run-dependent order,
+        # shuffling their vocab->index assignment and making trained weights
+        # (hence recall) non-reproducible. The item_id key pins it.
+        .sort(["count", "item_id"], descending=[True, False])
     )
 
     items = item_counts["item_id"].to_list()
@@ -118,7 +122,9 @@ def build_user_histories(
 
     grouped = (
         train_events
-        .sort("timestamp_ms")
+        # item_id tiebreak so same-timestamp events order deterministically
+        # (matters at the most-recent-N cap below).
+        .sort(["timestamp_ms", "item_id"])
         .filter(pl.col("item_id").is_in(list(vocab.item_id_to_idx.keys())))
         .group_by("user_id")
         .agg(pl.col("item_id").alias("items"))

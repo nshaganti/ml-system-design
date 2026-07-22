@@ -23,6 +23,8 @@ quality on real data (each phase's run.py + results.json owns that).
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -138,3 +140,22 @@ def test_monitor_docs_cannot_silently_drift_from_numbers():
     assert (ROOT / "scripts" / "build_results.py").exists()
     results_md = (ROOT / "docs" / "results.md").read_text()
     assert "AUTOGEN" in results_md, "scoreboard must carry autogen markers"
+
+
+@pytest.mark.parametrize("script", ["build_results.py", "build_report.py"])
+def test_generated_docs_are_in_sync_with_results_json(script):
+    """CACE, actually enforced: run each generator's --check in CI.
+
+    The original review's prose-drift warning came true precisely because the
+    scoreboard existed but nothing *ran* --check. This closes that gap: if any
+    generated doc (results.md, phase1.md, report.html) falls out of sync with the
+    phase results.json, this test fails.
+    """
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / script), "--check"],
+        capture_output=True, text=True,
+    )
+    assert proc.returncode == 0, (
+        f"{script} --check failed -- regenerate with: python scripts/{script}\n"
+        f"{proc.stdout}\n{proc.stderr}"
+    )

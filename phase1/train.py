@@ -26,8 +26,10 @@ import torch
 from torch.utils.data import DataLoader
 
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "phase0"))
 from two_tower import TwoTowerModel, bpr_loss, get_all_item_embeddings
 from dataset import BPRDataset, ItemVocab
+from repro import resolve_device, SEED
 
 
 EMBEDDING_DIM = 64
@@ -46,7 +48,10 @@ def train(
     """
     Train the two-tower model, log to MLflow, return trained model.
     """
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    # Reproducibility beats raw speed for the canonical run: MPS/CUDA kernels are
+    # non-deterministic (this caused the Phase 1 recall to drift between runs), so
+    # we default to CPU. Set CP_DEVICE=mps to go fast when experimenting.
+    device = resolve_device()
     print(f"[train] Device: {device}")
 
     loader = DataLoader(
@@ -55,8 +60,14 @@ def train(
         shuffle=True,
         num_workers=0,   # 0 = main process (safe on macOS with MPS)
         pin_memory=False,
+        generator=torch.Generator().manual_seed(SEED),  # deterministic shuffle
     )
 
+    # Pin weight initialization: re-seed right before constructing the model so the
+    # initial embeddings are identical every run, regardless of how much torch RNG
+    # the data-prep above happened to consume. Without this the headline recall
+    # drifted run-to-run even on CPU.
+    torch.manual_seed(SEED)
     model = TwoTowerModel(n_items=vocab.size, embedding_dim=EMBEDDING_DIM).to(device)
     optimizer = torch.optim.Adam(
         model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY

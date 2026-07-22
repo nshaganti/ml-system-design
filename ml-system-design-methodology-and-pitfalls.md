@@ -456,7 +456,7 @@ We split at the 80th percentile of the timeline, evaluating on the most recent s
 | Recall@20 | 6.70% | **12.31%** |
 | Catalog coverage | 7.14% | **15.70%** |
 
-Here Phase 1 wins on **both** axes -- recall +75% and coverage +113% -- because KuaiRand's dense feedback and small catalog give the embeddings enough signal to learn (Section 5). So this dataset does *not* show the classic tradeoff. But the reason to always track *both* metrics is exactly that on a **different** dataset you often see them diverge:
+Here Phase 1 wins on **both** axes -- recall +58% and coverage +117% -- because KuaiRand's dense feedback and small catalog give the embeddings enough signal to learn (Section 5). So this dataset does *not* show the classic tradeoff. But the reason to always track *both* metrics is exactly that on a **different** dataset you often see them diverge:
 
 > &#9888;&#65039; **On a sparse e-commerce log, a popularity ranker often "wins" Recall@K while a two-tower spreads recommendations across far more of the catalog (higher coverage) yet scores lower recall.** Then Recall@20 alone would tell you to throw the model away -- and you'd be discarding the discovery engine. Coverage is what stops a recommender from collapsing into a bestseller list.
 
@@ -608,7 +608,7 @@ Training examples per vocab item:              535,785 / 6,266 = ~85
 
 Each item gets ~85 gradient updates -> genuinely learned embeddings.
 ANN search on well-trained vectors returns relevant items.
-Warm-user Recall@20: 0.1252 (BEATS Phase 0's 0.0703)
+Warm-user Recall@20: 0.1098 (BEATS Phase 0's 0.0681)
 ```
 
 This is the healthy side of the tension: dense feedback means even a modest vocab has abundant signal per item. On a **sparse** log the same "use all events" choice can collapse to <1 example per item, producing near-random embeddings that lose to popularity -- the classic Phase 1 failure. The lever is the same either way: keep the vocab no larger than your training signal can support.
@@ -642,7 +642,7 @@ strong_events = train_events.filter(pl.col("signal") == "strong")
 
 On a *sparse* e-commerce log, the textbook result is that a two-tower loses to a
 strong popularity+category heuristic. On KuaiRand it's the opposite: the two-tower
-wins by +75% on recall and +113% on coverage. The difference is entirely the data
+wins by +58% on recall and +117% on coverage. The difference is entirely the data
 regime:
 
 - **Dense feedback.** A third of events are strong signals, so users have long,
@@ -687,7 +687,7 @@ add accuracy** -- the payoff curve is non-monotonic. Sorted by honest outcome:
 
 | Addition | Outcome |
 |---|---|
-| Two-tower over heuristic (P1) | **+75%** recall -- big win (dense-data regime) |
+| Two-tower over heuristic (P1) | **+58%** recall -- big win (dense-data regime) |
 | Co-visitation over popularity (P7) | **+61%** -- real, modest win |
 | Contextual over context-free OPL (P19) | **+28%** true value -- personalization recovered |
 | Two-tower score as a ranking feature (P13) | **+3.3%** -- two-stage finally earns it |

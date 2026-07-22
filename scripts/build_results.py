@@ -29,6 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 RESULTS_MD = ROOT / "docs" / "results.md"
+PHASE1_MD = ROOT / "docs" / "phase1.md"
 
 
 # --------------------------------------------------------------- helpers
@@ -355,8 +356,30 @@ def group_q(p20: dict) -> str:
 
 # --------------------------------------------------------------- main
 
-def build(text: str) -> str:
-    p = {n: load(n) for n in range(21)}
+def group_a_phase1(p0: dict, p1: dict) -> str:
+    """The deep-dive comparison table in docs/phase1.md.
+
+    This lives OUTSIDE docs/results.md, so it was previously hand-maintained and
+    silently drifted from the scoreboard. Now it is generated from the same
+    results.json and gated by --check, so the two can never disagree again.
+    """
+    def pct(a: float, b: float) -> str:
+        return f"{(b / a - 1) * 100:+.0f}%" if a else "n/a"
+
+    out = ["| Metric | Phase 0 (heuristic) | Phase 1 (two-tower) | Verdict |",
+           "|---|---|---|---|"]
+    for label, key in [("Recall@20", "recall_at_k"),
+                       ("Warm-user recall", "warm_user_recall"),
+                       ("Catalog coverage", "catalog_coverage")]:
+        a, b = p0[key], p1[key]
+        out.append(f"| {label} | {a:.4f} | **{b:.4f}** | **{pct(a, b)}** |")
+    a, b = p0["cold_start_recall"], p1["cold_start_recall"]
+    out.append(f"| Cold-start recall | {a:.4f} | {b:.4f} | "
+               f"~wash (both served by the heuristic fallback) |")
+    return "\n".join(out)
+
+
+def build_results_md(text: str, p: dict) -> str:
     if p[0] and p[1]:
         text = replace_block(text, "groupA", group_a(p[0], p[1]))
     if p[2]:
@@ -394,28 +417,40 @@ def build(text: str) -> str:
     return text
 
 
+def build_phase1_md(text: str, p: dict) -> str:
+    if p[0] and p[1]:
+        text = replace_block(text, "groupA-phase1", group_a_phase1(p[0], p[1]))
+    return text
+
+
+# (path, builder) pairs -- every generated doc is gated by --check.
+TARGETS = [(RESULTS_MD, build_results_md), (PHASE1_MD, build_phase1_md)]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true",
-                    help="exit 1 if results.md is out of date (do not write)")
+                    help="exit 1 if any generated doc is out of date (do not write)")
     args = ap.parse_args()
 
-    original = RESULTS_MD.read_text()
-    updated = build(original)
-
-    if args.check:
-        if original != updated:
-            print("docs/results.md is OUT OF DATE -- run: python scripts/build_results.py")
-            return 1
-        print("docs/results.md is up to date.")
-        return 0
-
-    if original == updated:
-        print("docs/results.md already up to date (no results.json changed the tables).")
-    else:
-        RESULTS_MD.write_text(updated)
-        print(f"Rewrote scoreboard tables in {RESULTS_MD.relative_to(ROOT)}.")
-    return 0
+    p = {n: load(n) for n in range(21)}
+    stale = False
+    for path, builder in TARGETS:
+        original = path.read_text()
+        updated = builder(original, p)
+        rel = path.relative_to(ROOT)
+        if args.check:
+            if original != updated:
+                print(f"{rel} is OUT OF DATE -- run: python scripts/build_results.py")
+                stale = True
+            else:
+                print(f"{rel} is up to date.")
+        elif original != updated:
+            path.write_text(updated)
+            print(f"Rewrote generated tables in {rel}.")
+        else:
+            print(f"{rel} already up to date.")
+    return 1 if (args.check and stale) else 0
 
 
 if __name__ == "__main__":

@@ -57,7 +57,7 @@ item-kNN) and eval on our own data:
 ## Finding 2: on KuaiRand, the two-tower already wins the retrieval task
 
 Unlike the classic e-commerce story (where an ID two-tower loses to a good
-heuristic), Phase 1's two-tower **beats** the heuristic here by +75% recall on the
+heuristic), Phase 1's two-tower **beats** the heuristic here by +58% recall on the
 full-catalog task -- because KuaiRand's feedback is dense enough to learn ID
 embeddings well. So on this dataset we are *not* badly underperforming on
 retrieval; the model earns its keep.
@@ -80,7 +80,7 @@ domain knowledge, not scraped):
 | Approach | Why it's relevant | Our status |
 |---|---|---|
 | **Session co-visitation / item-kNN** | Exploits in-session co-occurrence; simple, robust. | **BUILT (Phase 7): +61% over popularity** |
-| **Two-tower retrieval (ID + side features)** | Scales retrieval; strong when feedback is dense. | **BUILT (Phase 1), wins +75%; side features are the next step** |
+| **Two-tower retrieval (ID + side features)** | Scales retrieval; strong when feedback is dense. | **BUILT (Phase 1), wins +58%; side features are the next step** |
 | **Session-kNN variants** (V-SkNN, S-SkNN) | Recency/similarity-weighted neighbors; often top classical method. | Not built (natural next step) |
 | **Sequential neural** (GRU4Rec, SASRec, BERT4Rec) | Models item *order* within a session. | Not built (Phase 1 is order-blind mean-pooling) |
 | **IPS / DR debiased training & evaluation** | Corrects exposure bias using known/estimated propensities. | **BUILT (Phase 8 evaluation); debiased *training* is the frontier** |
@@ -118,4 +118,4 @@ domain knowledge, not scraped):
 
 The meta-lesson (consistent with the rest of this repo): **measure honestly on
 your own data.** That is what turned vague intuitions into precise numbers -- a
-+61% session lift, a +75% retrieval win, and a sobering +100% evaluation bias.
++61% session lift, a +58% retrieval win, and a sobering +100% evaluation bias.

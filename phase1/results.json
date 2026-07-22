@@ -1,13 +1,13 @@
 {
-  "catalog_coverage": 0.15278514588859415,
-  "cold_start_recall": 0.12526997840172785,
+  "catalog_coverage": 0.1473474801061008,
+  "cold_start_recall": 0.11572327044025157,
   "k": 20,
-  "map_at_k": 0.03078926961339135,
-  "ndcg_at_k": 0.07490287358973223,
-  "precision_at_k": 0.029969999999999834,
-  "recall_at_k": 0.1108153078202995,
-  "total_hits": 2997,
-  "total_positives": 27045,
+  "map_at_k": 0.031157485962196328,
+  "ndcg_at_k": 0.07564322948368564,
+  "precision_at_k": 0.030149999999999774,
+  "recall_at_k": 0.10994420741713161,
+  "total_hits": 3015,
+  "total_positives": 27423,
   "users_evaluated": 5000,
-  "warm_user_recall": 0.11030284467246067
+  "warm_user_recall": 0.10977166891993391
 }

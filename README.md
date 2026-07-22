@@ -33,7 +33,7 @@ us.** Written for an ML engineer moving from notebooks to production.
 **Part I -- classic recommender:**
 
 - [`docs/phase0.md`](docs/phase0.md) -- launch without ML; temporal evaluation; the baseline (Recall@20 = 0.067).
-- [`docs/phase1.md`](docs/phase1.md) -- two-tower retrieval that **beats** the heuristic (+75% recall, +113% coverage) on dense feedback.
+- [`docs/phase1.md`](docs/phase1.md) -- two-tower retrieval that **beats** the heuristic (+58% recall, +117% coverage) on dense feedback.
 - [`docs/phase2.md`](docs/phase2.md) -- the feature store, training-serving skew, and why a weak cross feature made the ranker *lose* to popularity (Rules 17 & 20).
 - [`docs/phase3.md`](docs/phase3.md) -- the serving architecture: the 100ms request path (p50 4.1ms), latency budgets, graceful fallback, Rule 29 feature logging.
 - [`docs/phase4.md`](docs/phase4.md) -- monitoring and drift detection: three health layers and a blocking pipeline gate.
@@ -155,7 +155,7 @@ Or run them one at a time:
 
 ```bash
 cd phase0 && python run.py   # heuristic baseline; Recall@20 = 0.071 (writes results.json)
-cd phase1 && python run.py   # two-tower; +75% recall vs Phase 0 (MLflow-tracked)
+cd phase1 && python run.py   # two-tower; +58% recall vs Phase 0 (MLflow-tracked)
 cd phase2 && python run.py   # LR ranker + point-in-time feature store + skew audit
 cd phase3 && python run.py   # serving: p50 4.2ms, load test, fault-injection fallback
 cd phase4 && python run.py   # monitoring: 3 health layers + a blocking pipeline gate
@@ -189,7 +189,7 @@ Inspect Phase 1 training runs with `mlflow ui --port 5000`.
 ## Running the tests
 
 ```bash
-pytest tests/ -q     # ~180 tests, tiny in-memory data, no dataset download required
+pytest tests/ -q     # ~200 tests, tiny in-memory data, no dataset download required
 ```
 
 CI runs the same suite on every push and pull request.

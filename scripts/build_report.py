@@ -551,10 +551,23 @@ def build() -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--open", action="store_true", help="open the report after writing")
+    ap.add_argument("--check", action="store_true",
+                    help="exit 1 if docs/report.html is out of date (do not write)")
     args = ap.parse_args()
 
-    OUT.write_text(build())
-    print(f"Wrote {OUT.relative_to(ROOT)}")
+    rendered = build()
+    rel = OUT.relative_to(ROOT)
+
+    if args.check:
+        current = OUT.read_text() if OUT.exists() else ""
+        if current != rendered:
+            print(f"{rel} is OUT OF DATE -- run: python scripts/build_report.py")
+            return 1
+        print(f"{rel} is up to date.")
+        return 0
+
+    OUT.write_text(rendered)
+    print(f"Wrote {rel}")
 
     if args.open:
         import webbrowser

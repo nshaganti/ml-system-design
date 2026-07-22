@@ -38,7 +38,7 @@ So the tables below are **grouped by what is actually comparable.** Cross-group
 comparisons are explicitly flagged as invalid.
 
 > **The honest through-line (KuaiRand):** on dense feedback and a small catalog,
-> the ML retrieval model **does** beat the heuristic (Phase 1, ~+75% recall). But a
+> the ML retrieval model **does** beat the heuristic (Phase 1, ~+58% recall). But a
 > weak single cross-feature **hurts** (Phase 2), the A/B test honestly rules that
 > weak ranker out (Phase 5, significant ~-6%), and in-session freshness barely
 > moves (Phase 6). Then **Part II (Phase 8) drops the real bomb: the offline metrics
@@ -55,14 +55,14 @@ same temporal split.
 <!-- AUTOGEN:groupA -->
 | Metric | Phase 0 (heuristic) | Phase 1 (two-tower) | Change |
 |---|---|---|---|
-| Recall@20 | 0.0714 | **0.1108** | +55% |
-| Warm-user recall | 0.0703 | **0.1103** | +57% |
-| Cold-start recall | 0.1189 | **0.1253** | +5% |
-| Catalog coverage | 0.0752 | **0.1528** | +103% |
+| Recall@20 | 0.0695 | **0.1099** | +58% |
+| Warm-user recall | 0.0681 | **0.1098** | +61% |
+| Cold-start recall | 0.1157 | 0.1157 | +0% |
+| Catalog coverage | 0.0679 | **0.1473** | +117% |
 <!-- /AUTOGEN:groupA -->
 
 **Verdict:** the learned two-tower **beats** the heuristic on the metrics that
-measure learning -- roughly 1.8x recall and 2.2x coverage. (Cold-start recall is a
+measure learning -- roughly 1.6x recall and 2.2x coverage. (Cold-start recall is a
 wash: cold users are served by the *same* heuristic fallback in both systems, so
 any gap there is sampling noise, not signal.) This is the *opposite* of what a
 sparse e-commerce log tends to show: KuaiRand's feedback is dense (a third of
@@ -251,9 +251,9 @@ its own.
 <!-- AUTOGEN:groupI -->
 | Ranker | Recall@20 | NDCG@20 | Coverage |
 |---|---|---|---|
-| Two-tower alone (P1) | **0.1122** | **0.0735** | **0.1434** |
-| Popularity -> LR (P2) | 0.0612 | 0.0428 | 0.0499 |
-| Two-tower -> LR (P12) | 0.0950 | 0.0674 | 0.0733 |
+| Two-tower alone (P1) | **0.1129** | **0.0775** | **0.1415** |
+| Popularity -> LR (P2) | 0.0616 | 0.0418 | 0.0487 |
+| Two-tower -> LR (P12) | 0.0973 | 0.0661 | 0.0768 |
 <!-- /AUTOGEN:groupI -->
 
 **Verdict:** the architecture textbooks draw -- retrieve then rerank -- **loses to
@@ -278,9 +278,9 @@ feature so the rerank stops fighting the retriever.
 <!-- AUTOGEN:groupJ -->
 | Ranker | Recall@20 | NDCG@20 | Coverage |
 |---|---|---|---|
-| Two-tower alone | 0.1107 | 0.0742 | **0.1414** |
-| TT -> LR (pop feats) | 0.0950 | 0.0644 | 0.0749 |
-| TT -> LR + tt_score | **0.1189** | **0.0820** | 0.1212 |
+| Two-tower alone | 0.1129 | 0.0775 | **0.1415** |
+| TT -> LR (pop feats) | 0.0976 | 0.0662 | 0.0761 |
+| TT -> LR + tt_score | **0.1174** | **0.0808** | 0.1232 |
 <!-- /AUTOGEN:groupJ -->
 
 **Verdict:** the fix works. Adding one feature -- the retrieval score itself --
@@ -525,7 +525,7 @@ feed the Phase 2 ranker -- so you can debias production traffic in place. See
 | Phase | Primary currency | Headline result | Accuracy delta |
 |---|---|---|---|
 | 0 Heuristic | a **baseline** | Recall@20 = 0.071 | (defines zero) |
-| 1 Two-tower | a **pipeline** + real retrieval win | +75% recall, +113% coverage | **up** |
+| 1 Two-tower | a **pipeline** + real retrieval win | +58% recall, +117% coverage | **up** |
 | 2 Feature store + LR | **correctness** (skew audit) + interpretability | weak cross feature hurt (-13% NDCG) | down |
 | 3 Serving | **latency & robustness** (p50 4.2ms, fallback) | no accuracy change | flat |
 | 4 Monitoring | **trust** (drift gate FAIL, as designed) | no accuracy change | flat |
@@ -561,7 +561,7 @@ needle -- and remembering that only within-group numbers are comparable:
 
 | Added complexity | Comparable delta | Paid off? |
 |---|---|---|
-| Two-tower retrieval (P1 vs P0) | Recall@20 +75%, coverage +113% | **Yes -- big** |
+| Two-tower retrieval (P1 vs P0) | Recall@20 +58%, coverage +117% | **Yes -- big** |
 | Co-visitation for sessions (P7) | +60% vs popularity (session task) | **Yes** (different, easier task) |
 | IPW debiasing of labels (P11) | ranking Spearman 0.86 -> 0.97 | **Yes** (simulation) |
 | LR ranker w/ one cross feature (P2) | Recall@20 -8%, NDCG -13% | **No -- hurt** |
